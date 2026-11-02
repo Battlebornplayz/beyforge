@@ -14,7 +14,7 @@ const DEFAULTS = {
     {name:'Red PLA', color:'#e8262f', material:'PLA'}, {name:'Blue PETG', color:'#1f8bff', material:'PETG'}],
   recentColors:[]
 };
-BF.ROUND_LENGTH = {short:{label:'Short (~20 s)',k:1.35}, normal:{label:'Normal (~45 s)',k:0.7}, long:{label:'Long (~90 s)',k:0.4}, real:{label:'Real-life spin times',k:0.25}, custom:{label:'Custom',k:null}};
+BF.ROUND_LENGTH = {short:{label:'Short (up to ~20 s)',k:1.35}, normal:{label:'Normal (up to ~45 s)',k:0.7}, long:{label:'Long (up to ~90 s)',k:0.4}, real:{label:'Real-life spin times',k:0.25}, custom:{label:'Custom',k:null}};
 BF.FORMATS = {
   official:{label:'Official (X: 4 pts · Burst: 3 pts)'}, x4:{label:'X official — first to 4', target:4, pts:'X'}, burst3:{label:'Burst official — first to 3', target:3, pts:'Burst'},
   bo3:{label:'Best of 3 rounds', target:2, pts:'round'}, bo5:{label:'Best of 5 rounds', target:3, pts:'round'}, bo7:{label:'Best of 7 rounds', target:4, pts:'round'}, custom:{label:'Custom'}

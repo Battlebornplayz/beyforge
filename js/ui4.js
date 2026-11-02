@@ -277,7 +277,7 @@ function cosmetics(d,onChange){
   const w=el('div','cosgrid');
   [['trail','Spin trail'],['launch','Launch effect'],['aura','Aura'],['win','Win animation']].forEach(([k,l])=>{
     const row=el('div','ctl'); row.appendChild(el('div','ctl-head',`<label>${l}</label>`)); const g=el('div','chips');
-    Object.entries(BF.COSMETICS[k]).forEach(([v,n])=>{ const b=el('button','chip'+(d.cos[k]===v?' on':''),esc(n)); b.type='button'; b.onclick=()=>onChange('cos.'+k,v,{commit:true,re:true}); g.appendChild(b); });
+    Object.entries(BF.COSMETICS[k]).forEach(([v,n])=>{ const own=BF.Shop.has(k,v); const b=el('button','chip'+(d.cos[k]===v?' on':'')+(own?'':' locked'),esc(n)+(own?'':`<i class="lk">${BF.Shop.price(k,v)}</i>`)); b.type='button'; b.onclick=()=>BF.Shop.require(k,v,()=>onChange('cos.'+k,v,{commit:true,re:true})); g.appendChild(b); });
     row.appendChild(g); w.appendChild(row); });
   const tc=el('div','ctl'); tc.appendChild(el('div','ctl-head','<label>Trail color</label>'));
   tc.appendChild(colorRow(d.cos.trailColor||d.paint.blade.color,(c,commit)=>onChange('cos.trailColor',c,{commit}))); w.appendChild(tc);
@@ -297,14 +297,14 @@ function paintStudio(d,onChange,easy){
   const set=(k,v,commit,re)=>onChange(base+k,v,{commit,re});
   const section=(label,node)=>{ const s=el('div','ctl'); s.appendChild(el('div','ctl-head',`<label>${label}</label>`)); s.appendChild(node); w.appendChild(s); };
   section('Color',colorRow(P.color,(c,commit)=>{ set('color',c,commit); if(commit) BF.Settings.pushRecent(c); }));
-  const fin=el('div','chips'); Object.entries(BF.FINISHES).forEach(([k,l])=>{ const b=el('button','chip fin-'+k+(P.finish===k?' on':''),l); b.type='button'; b.onclick=()=>set('finish',k,true,true); fin.appendChild(b); }); section('Finish',fin);
+  const fin=el('div','chips'); Object.entries(BF.FINISHES).forEach(([k,l])=>{ const own=BF.Shop.has('finish',k); const b=el('button','chip fin-'+k+(P.finish===k?' on':'')+(own?'':' locked'),esc(l)+(own?'':`<i class="lk">${BF.Shop.price('finish',k)}</i>`)); b.type='button'; b.onclick=()=>BF.Shop.require('finish',k,()=>set('finish',k,true,true)); fin.appendChild(b); }); section('Finish',fin);
   if(!easy){
     const st=el('div','seg sm'); Object.entries(BF.PAINT_STYLES).forEach(([k,l])=>{ if(k==='perwing'&&pk!=='blade') return; const b=el('button',P.style===k?'on':'',l); b.type='button'; b.onclick=()=>set('style',k,true,true); st.appendChild(b); }); section('Style',st);
     if(P.style==='gradient'||P.style==='twotone') section(P.style==='gradient'?'Edge color':'Outer color',colorRow(P.color2,(c,commit)=>set('color2',c,commit)));
     if(P.style==='perwing'){ const g=el('div','wingcols'); for(let i=0;i<Math.round(d.blade.wings);i++){ const inp=el('input'); inp.type='color'; inp.value=P.wingColors[i]||P.color; inp.title='Wing '+(i+1);
         inp.onchange=()=>{ const a=P.wingColors.slice(); for(let q=0;q<Math.round(d.blade.wings);q++) a[q]=a[q]||P.color; a[i]=inp.value; set('wingColors',a,true); }; const lab=el('label','wc',`<span>W${i+1}</span>`); lab.prepend(inp); g.appendChild(lab); } section('Wing colors',g); }
   }
-  const pg=el('div','chips'); Object.entries(BF.PATTERNS).forEach(([k,l])=>{ const b=el('button','chip'+(P.pattern===k?' on':''),l); b.type='button'; b.onclick=()=>set('pattern',k,true,true); pg.appendChild(b); }); section('Pattern',pg);
+  const pg=el('div','chips'); Object.entries(BF.PATTERNS).forEach(([k,l])=>{ const own=BF.Shop.has('pattern',k); const b=el('button','chip'+(P.pattern===k?' on':'')+(own?'':' locked'),esc(l)+(own?'':`<i class="lk">${BF.Shop.price('pattern',k)}</i>`)); b.type='button'; b.onclick=()=>BF.Shop.require('pattern',k,()=>set('pattern',k,true,true)); pg.appendChild(b); }); section('Pattern',pg);
   if(P.pattern!=='none'){
     section('Pattern color',colorRow(P.patternColor,(c,commit)=>set('patternColor',c,commit)));
     if(!easy){ w.appendChild(baseControl({k:base+'patternScale',t:'range',l:'Pattern size',min:0.4,max:3,step:0.05,fmt:v=>v.toFixed(2)+'×'},d,onChange));
@@ -318,7 +318,7 @@ function paintStudio(d,onChange,easy){
     P.decals.forEach((dc,i)=>dw.appendChild(itemEditor('Image '+(i+1),dc,v=>{ const a=P.decals.slice(); if(v) a[i]=v; else a.splice(i,1); set('decals',a,true,true); },false)));
     section('Images & logos',dw);
     // stickers
-    const sw=el('div','decals'); const sg=el('div','chips'); Object.entries(BF.STICKERS).forEach(([k,l])=>{ const b=el('button','chip',`+ ${l}`); b.type='button'; b.onclick=()=>{ const a=P.stickers.slice(); a.push({k,place:a.length%2?'wings':'center',size:0.28,rot:0,alpha:1,r:0.72,color:'#ffffff',text:k==='number'?'7':k==='text'?'BEY':''}); set('stickers',a,true,true); }; sg.appendChild(b); });
+    const sw=el('div','decals'); const sg=el('div','chips'); Object.entries(BF.STICKERS).forEach(([k,l])=>{ const own=BF.Shop.has('sticker',k); const b=el('button','chip'+(own?'':' locked'),`+ ${l}`+(own?'':`<i class="lk">${BF.Shop.price('sticker',k)}</i>`)); b.type='button'; b.onclick=()=>BF.Shop.require('sticker',k,()=>{ const a=P.stickers.slice(); a.push({k,place:a.length%2?'wings':'center',size:0.28,rot:0,alpha:1,r:0.72,color:'#ffffff',text:k==='number'?'7':k==='text'?'BEY':''}); set('stickers',a,true,true); }); sg.appendChild(b); });
     sw.appendChild(sg);
     P.stickers.forEach((st,i)=>sw.appendChild(itemEditor(BF.STICKERS[st.k],st,v=>{ const a=P.stickers.slice(); if(v) a[i]=v; else a.splice(i,1); set('stickers',a,true,true); },true)));
     section('Stickers',sw);

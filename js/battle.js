@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const BF=window.BF, T=THREE, {clamp,lerp}=BF.util;
-const G=9810, TAU=Math.PI*2;
+const G=9810, TAU=Math.PI*2, BURST_K=5200, KICK_MAX=1350;
 
 // ---------- fighter: physical summary of a design ----------
 BF.fighter = function(d, name){
@@ -54,16 +54,16 @@ BF.Sim = class {
       const inward=tang+(sign>0?1:-1)*(28+(l.angle||0))*Math.PI/180;
       const sp=260+l.power*620;
       return {x,y,vx:sp*Math.cos(inward),vy:sp*Math.sin(inward), w:600*(0.55+0.45*l.power), w0:600*(0.55+0.45*l.power),
-        sign, ang:this.rand()*TAU, tilt:0, alive:true, out:false, burst:false, dash:0, dashCd:0, hitCd:0, z:0, ...tipFor(f,l)};
+        sign, ang:this.rand()*TAU, ph:this.rand()*TAU, phr:0.85+0.3*this.rand(), dmg:0, tilt:0, alive:true, out:false, burst:false, dash:0, dashCd:0, hitCd:0, z:0, ...tipFor(f,l)};
     });
-    this.t=0; this.done=null; this.events=[];
+    this.t=0; this.done=null; this.events=[]; this.heat=0;
   }
   // mode-change tips switch stats per launch
   zoneAt(a){ a=((a%TAU)+TAU)%TAU; for(const z of this.st.zones){ let d=a-z.a; d=((d%TAU)+TAU)%TAU; if(d<z.w) return z.type; } return null; }
   step(dt){
     if(this.done) return;
     const B=this.b, F=this.f, R=this.R, st=this.st;
-    this.t+=dt; const maxT=Math.max(90,90/this.decayK*0.8);
+    this.t+=dt; this.heat+=dt; const maxT=Math.max(90,90/this.decayK*0.8);
     for(let i=0;i<2;i++){
       const b=B[i], f=F[i]; if(!b.alive) continue;
       const r=Math.hypot(b.x,b.y)||1e-6, ux=b.x/r, uy=b.y/r;
@@ -74,16 +74,25 @@ BF.Sim = class {
       const spinFrac=b.w/b.w0, mob=b.tip.mob;
       // flower pattern: the tip carves along the rim then periodically dives back through the center
       const tx0=uy*b.sign, ty0=-ux*b.sign;
-      b.ph=(b.ph||this.rand()*TAU)+dt*(1.6+1.6*mob);
+      b.ph+=dt*(1.6+1.6*mob)*b.phr;
       const beta=(0.25+0.85*Math.max(0,Math.sin(b.ph)))*Math.min(1,r/(R*0.25));
       const tx=tx0*Math.cos(beta)-ux*Math.sin(beta), ty=ty0*Math.cos(beta)-uy*Math.sin(beta);
       const drive=mob*950*spinFrac*(0.6+0.4*Math.min(1,r/(R*0.4)));
       ax+=tx*drive; ay+=ty*drive;
+      // aggression: Beys hunt each other. Attack types chase hard; the longer nobody touches,
+      // the harder both get pulled together (real Beys drift into each other as the bowl funnels them)
+      const o=B[1-i];
+      if(o.alive){
+        const px=o.x+o.vx*0.12-b.x, py=o.y+o.vy*0.12-b.y, pd=Math.hypot(px,py)||1;
+        const aggr=(0.2+0.95*f.atk/100)*(0.45+0.55*mob);
+        const seek=900*aggr*Math.sqrt(spinFrac)*(0.3+Math.min(1.4,this.heat/2.4))*clamp((this.t-1.2)/2.5,0,1);
+        ax+=px/pd*seek; ay+=py/pd*seek;
+      }
       ax+=(this.rand()-0.5)*900*mob; ay+=(this.rand()-0.5)*900*mob;
       // Xtreme Dash: gear bits catch the rail and rocket forward
       if(f.gear && st.rail && b.dashCd<=0 && Math.abs(r-R*st.rail)<9 && spinFrac>0.35){ b.dash=0.32; b.dashCd=1.4; this.events.push({k:'dash',i}); }
       if(b.dash>0){ const v=Math.hypot(b.vx,b.vy)||1; const want=1500*spinFrac; b.vx+=(tx0*want-b.vx)*Math.min(1,dt*12); b.vy+=(ty0*want-b.vy)*Math.min(1,dt*12); b.dash-=dt; }
-      b.dashCd-=dt; b.hitCd-=dt; b.wallCd=(b.wallCd||0)-dt;
+      b.dmg=Math.max(0,b.dmg-dt*0.012); b.dashCd-=dt; b.hitCd-=dt; b.wallCd=(b.wallCd||0)-dt;
       // floor friction / damping: stamina tips settle, attack tips keep moving
       const damp=0.85+1.0*(1-mob)+1.5*b.tilt;
       b.vx+=ax*dt; b.vy+=ay*dt; b.vx*=1-damp*dt; b.vy*=1-damp*dt;
@@ -99,7 +108,9 @@ BF.Sim = class {
       const r2=Math.hypot(b.x,b.y), lim=R-f.R-4;
       if(r2>lim){
         const nx=b.x/r2, ny=b.y/r2, vr=b.vx*nx+b.vy*ny, zone=this.zoneAt(Math.atan2(b.y,b.x));
-        if(zone && vr>(zone==='xtreme'?340:390)){ b.alive=false; b.out=zone; this.events.push({k:zone,i}); }
+        // the opening clash rarely rings anyone out — Beys still have the launch's grip on the floor
+        const early=1+0.6*clamp(1-(this.t-1.5)/3,0,1);
+        if(zone && vr>(zone==='xtreme'?290:340)*early){ b.alive=false; b.out=zone; this.events.push({k:zone,i}); }
         else { b.x=nx*lim; b.y=ny*lim; if(vr>0){ b.vx-=(1.55)*vr*nx; b.vy-=(1.55)*vr*ny; b.vx*=0.997; b.vy*=0.997; if(vr>60 && b.wallCd<=0){ b.w-=Math.min(b.w*0.04, vr*0.012); b.wallCd=0.25; } if(vr>250) this.events.push({k:'wall',i,x:b.x,y:b.y,s:vr}); } }
       }
       b.z=st.depth*Math.min(r2,R)**2/R;
@@ -119,7 +130,8 @@ BF.Sim = class {
           const j=(1+e)*Math.max(0,-vn)/(1/m1+1/m2);
           a.vx-=j/m1*nx; a.vy-=j/m1*ny; b.vx+=j/m2*nx; b.vy+=j/m2*ny;
           // contact points throw the other Bey: scaled by attacker's attack vs target's defense and mass
-          const kick=(atk,def,mSelf,mOther)=>clash*1.9*Math.pow(0.1+atk/100,2)*(1.3-def/100)*clamp(Math.sqrt(mOther/mSelf),0.55,1.8);
+          // soft-capped so one tap doesn't fling a Bey out — big hits still can, chip damage adds up
+          const kick=(atk,def,mSelf,mOther)=>{ const raw=clash*0.85*Math.pow(0.1+atk/100,2)*(1.3-def/100)*clamp(Math.sqrt(mOther/mSelf),0.55,1.8); return KICK_MAX*(1-Math.exp(-raw/KICK_MAX)); };
           const ka=kick(F[1].atk,F[0].def,m1,m2), kb=kick(F[0].atk,F[1].def,m2,m1);
           a.vx-=nx*ka; a.vy-=ny*ka; b.vx+=nx*kb; b.vy+=ny*kb;
           // spin loss; opposite spins steal from the weaker one
@@ -131,10 +143,14 @@ BF.Sim = class {
           const cx=a.x+nx*F[0].R, cy=a.y+ny*F[0].R;
           this.events.push({k:'hit',x:cx,y:cy,s:clash});
           // burst check: big hits on a Bey that's lost some spin can blow it apart
+          // burst meter: every hit knocks the ratchet a few clicks; enough clicks and it bursts
+          this.heat=0;
           [[a,0,F[1].atk],[b,1,F[0].atk]].forEach(([bb,ix,atk])=>{
-            const f=F[ix], weak=1-bb.w/bb.w0;
-            const p=clamp(Math.pow(clash/1300,2)*(1-f.brs/105)*(0.2+weak)*(0.4+atk/100)*0.25,0,0.4);
-            if(bb.alive && weak>0.12 && this.rand()<p){ bb.alive=false; bb.burst=true; this.events.push({k:'burst',i:ix}); }
+            const f=F[ix], weak=1-bb.w/bb.w0, before=bb.dmg;
+            bb.dmg+=clash/BURST_K*(0.35+atk/100)*Math.max(0.12,1.12-f.brs/100)*(0.55+weak)*(0.7+0.6*this.rand());
+            // the ratchet slowly re-seats between hits
+            if(Math.floor(bb.dmg*3)>Math.floor(before*3) && bb.dmg<1) this.events.push({k:'click',i:ix,x:bb.x,y:bb.y,n:Math.floor(bb.dmg*3)});
+            if(bb.alive && bb.dmg>=1){ bb.alive=false; bb.burst=true; this.events.push({k:'burst',i:ix}); }
           });
         }
       }
@@ -148,7 +164,7 @@ BF.Sim = class {
       this.done={winner,how,t:this.t};
     } else if(this.t>maxT){ this.done={winner:a.w>=b.w?0:1, how:'spin', t:this.t}; }
   }
-  snapshot(){ return {t:this.t, b:this.b.map(b=>[b.x,b.y,b.z,b.ang,b.w,b.w0,b.tilt,b.alive?1:0,b.burst?1:0,b.dash>0?1:0]), done:this.done}; }
+  snapshot(){ return {t:this.t, b:this.b.map(b=>[b.x,b.y,b.z,b.ang,b.w,b.w0,b.tilt,b.alive?1:0,b.burst?1:0,b.dash>0?1:0,b.dmg]), done:this.done}; }
 };
 
 // ---------- arena renderer ----------

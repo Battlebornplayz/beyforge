@@ -258,6 +258,11 @@ BF.UI = {
         <button class="btn primary" data-act="save">Save to library</button>
         <button class="btn" data-act="random">Surprise me</button>
       </div>
+      <div class="block acts">
+        <button class="btn" data-act="card">Bey card</button>
+        <button class="btn" data-act="showcase">Showcase</button>
+        <button class="btn" data-act="share">Share</button>
+      </div>
       <div class="block">
         <div class="blk-title">Presets</div>
         <div class="presets">${BF.PRESETS.map(p=>`<button class="preset" data-preset="${p.id}"><b>${esc(p.name)}</b><span>${p.sys==='X'?'X':'Burst'} · ${esc(p.blurb)}</span></button>`).join('')}</div>

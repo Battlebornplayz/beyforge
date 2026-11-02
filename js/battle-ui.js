@@ -204,6 +204,7 @@ const B = BF.BattleUI = {
     if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
     if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); }
     if(e.k==='dash'){ BF.Sfx && BF.Sfx.dash(); }
+    if(e.k==='click'){ ar.spark(e.x,e.y,14,700,0xffd21f); BF.Sfx && BF.Sfx.click&&BF.Sfx.click(e.n); const bar=$('#bm'+(e.i+1)); if(bar){ bar.parentNode.classList.remove('pop'); void bar.offsetWidth; bar.parentNode.classList.add('pop'); } }
   },
   roundEnd(res,score,fromNet){
     this.st='roundEnd'; if(score) this.score=score;
@@ -236,8 +237,8 @@ const B = BF.BattleUI = {
     [0,1].forEach(i=>{
       const pips=$('#pips'+(i+1)); const t=this.rules.target;
       pips.innerHTML=Array.from({length:t},(_,k)=>`<i class="${k<this.score[i]?'on':''}"></i>`).join('');
-      if(snap){ const s=snap.b[i]; $('#s'+(i+1)).style.width=Math.max(0,Math.min(100,s[4]/s[5]*100))+'%'; }
-      else $('#s'+(i+1)).style.width='100%';
+      if(snap){ const s=snap.b[i]; $('#s'+(i+1)).style.width=Math.max(0,Math.min(100,s[4]/s[5]*100))+'%'; const bm=$('#bm'+(i+1)); bm.style.width=Math.min(100,(s[10]||0)*100)+'%'; bm.parentNode.classList.toggle('hot',(s[10]||0)>0.66); }
+      else { $('#s'+(i+1)).style.width='100%'; $('#bm'+(i+1)).style.width='0%'; }
     });
     $('#roundLbl').textContent='Round '+this.round;
   },

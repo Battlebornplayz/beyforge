@@ -26,7 +26,8 @@ const App = BF.App = {
     this.bindToolbar(); this.bindTabs(); this.bindKeys(); this.bindFolder(); this.bindModal();
     const mb=$('#muteBtn'); const pm=()=>mb.classList.toggle('muted',BF.Sfx.muted); pm(); mb.addEventListener('click',()=>{ BF.Sfx.toggle(); pm(); });
     BF.Store.init();
-    BF.Social.init(); BF.Account.init(); BF.Native.init();
+    BF.Social.init(); BF.Account.init(); BF.Native.init(); BF.Card.bind(); this.bindLibrary(); BF.Share.checkHash(); BF.Tour.auto();
+    $('#scExit').addEventListener('click',()=>BF.Showcase.toggle()); $('#scCard').addEventListener('click',()=>BF.Card.open(BF.clone(this.d)));
     $('#annX').addEventListener('click',()=>{ $('#announce').hidden=true; BF.LS.set('bf.announceSeen',this._ann||''); });
     this.logo();
   },
@@ -72,6 +73,9 @@ const App = BF.App = {
       an:this.an, exportOpts:this.ex,
       toggleEx:k=>{ const e=this.ex; e[k]=!e[k]; if(!e.stl&&!e.threemf) e[k==='stl'?'threemf':'stl']=true; if(!e.perPart&&!e.plate) e[k==='perPart'?'plate':'perPart']=true; BF.LS.set('bf.export',e); this.renderSheet(); },
       export:b=>this.exportFiles(b),
+      card:()=>BF.Card.open(BF.clone(this.d)),
+      showcase:()=>BF.Showcase.toggle(),
+      share:()=>BF.Share.open(BF.clone(this.d)),
       prompt:()=>this.showPrompt(),
       reroll:()=>{ this.push(); this.d.nameSeed=Math.floor(Math.random()*99999); this.rebuild(); },
       rename:()=>{ this.push(); if(this.d.nameMode==='auto'){ this.d.nameMode='manual'; this.d.name=BF.naming(this.d).auto; } else this.d.nameMode='auto'; this.rebuild(); },
@@ -130,9 +134,10 @@ const App = BF.App = {
     document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>{
       document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
       document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!=='view-'+b.dataset.tab);
-      if(b.dataset.tab==='library') this.renderLibrary();
+      if(b.dataset.tab==='library') this.libView==='gallery'?BF.Gallery.render($('#galGrid')):this.renderLibrary();
       if(b.dataset.tab==='forge') this.viewer.resize();
       if(b.dataset.tab==='profile') BF.Social.render();
+      if(b.dataset.tab==='shop') BF.Shop.render();
       if(b.dataset.tab==='battle'){ if(!BF.BattleUI.arena) BF.BattleUI.init(); BF.BattleUI.show(); }
     }));
   },
@@ -158,6 +163,14 @@ const App = BF.App = {
     paint('none');
     btn.addEventListener('click',async()=>{ if(BF.Store.status==='unsupported'){ this.toast('This browser can’t write to folders — designs stay in browser storage'); return; } const ok=await BF.Store.connect(); if(ok) this.toast('Connected to '+BF.Store.dir.name,'good'); });
   },
+  bindLibrary(){
+    this.libView='mine';
+    document.querySelectorAll('#libSeg button').forEach(b=>b.onclick=()=>{ this.libView=b.dataset.lv; document.querySelectorAll('#libSeg button').forEach(x=>x.classList.toggle('on',x===b));
+      const g=this.libView==='gallery'; $('#libGrid').hidden=g; $('#galGrid').hidden=!g; $('#galSort').hidden=!g; $('#libWhere').hidden=g;
+      g?BF.Gallery.render($('#galGrid')):this.renderLibrary(); });
+    document.querySelectorAll('#galSort button').forEach(b=>b.onclick=()=>{ BF.Gallery.sort=b.dataset.s; document.querySelectorAll('#galSort button').forEach(x=>x.classList.toggle('on',x===b)); BF.Gallery.render($('#galGrid')); });
+    $('#libCode').onclick=()=>BF.Share.open(BF.clone(this.d));
+  },
   async renderLibrary(){
     const root=$('#libGrid'); root.innerHTML='<div class="empty">Loading…</div>';
     const recs=await BF.Store.loadLibrary();
@@ -168,7 +181,9 @@ const App = BF.App = {
       const c=document.createElement('div'); c.className='libcard';
       c.innerHTML=`<div class="lib-img">${r.thumb?`<img alt="" src="${r.thumb}">`:''}</div>
         <div class="lib-meta"><span class="lib-type t-${esc(r.meta.type)}">${esc(r.meta.type)}</span><b>${esc(r.meta.name)}</b><span class="mono">${esc(r.meta.code)}</span><span class="dim">${esc(r.meta.system==='X'?'Beyblade X':'Burst')} · ${r.meta.mass} g · ${new Date(r.saved).toLocaleDateString()}</span></div>
-        <div class="lib-acts"><button class="btn primary" data-a="load">Open in Forge</button><button class="btn ghost" data-a="del">Delete</button></div>`;
+        <div class="lib-acts"><button class="btn primary" data-a="load">Open</button><button class="btn" data-a="card">Card</button><button class="btn" data-a="pub">Publish</button><button class="btn ghost" data-a="del">Delete</button></div>`;
+      c.querySelector('[data-a=card]').addEventListener('click',()=>BF.Card.open(BF.normalize(BF.clone(r.design)),r.thumb));
+      c.querySelector('[data-a=pub]').addEventListener('click',()=>BF.Gallery.publish(r));
       c.querySelector('[data-a=load]').addEventListener('click',()=>{ this.push(); this.d=BF.normalize(BF.clone(r.design)); this.viewer.framed=false; this.renderControls(); this.rebuild(); document.querySelector('#tabs [data-tab=forge]').click(); this.toast('Opened '+r.meta.name); });
       const del=c.querySelector('[data-a=del]');
       del.addEventListener('click',async()=>{ if(!del.classList.contains('confirm')){ del.classList.add('confirm'); del.textContent='Tap again to delete'; setTimeout(()=>{ del.classList.remove('confirm'); del.textContent='Delete'; },3000); return; } await BF.Store.deleteDesign(r); this.renderLibrary(); });
