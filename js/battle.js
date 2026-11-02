@@ -66,11 +66,12 @@ BF.Sim = class {
       const lean={flat:0,bank:14,sliding:-14,power:0}[shot];
       const inward=tang+(sign>0?1:-1)*(28+(l.angle||0)+lean)*Math.PI/180;
       const sp=(260+l.power*620)*({flat:1,bank:1.08,sliding:1.12,power:1.12}[shot]);
-      const w=600*(0.55+0.45*l.power)*(shot==='power'?1.1:1);
+      const perks=l.perks||[];
+      const w=600*(0.55+0.45*l.power)*(shot==='power'?1.1:1)*(perks.includes('grit')?1.04:1);
       const b={i,x,y,vx:sp*Math.cos(inward),vy:sp*Math.sin(inward), w, w0:w,
         sign, ang:this.rand()*TAU, ph:this.rand()*TAU, phr:0.85+0.3*this.rand(), dmg:0, tilt:shot==='power'?0.3:0, alive:true, out:false, burst:false,
         dash:0, dashCd:0, hitCd:0, z:0, shot, fx:{}, st:{}, next:{}, moveT:0, moveEl:null, leanT:0, leanCd:0, zigT:0,
-        moves:(this.movesOn&&l.moves)?l.moves.slice(0,3):[], used:[false,false,false], ...tipFor(f,l)};
+        moves:(this.movesOn&&l.moves)?l.moves.slice(0,3):[], used:[false,false,false], perks, ...tipFor(f,l)};
       if(shot==='sliding') b.fx.slide=4;
       return b;
     });
@@ -79,11 +80,17 @@ BF.Sim = class {
   // ---------- player inputs (host applies them; guests send theirs over the network) ----------
   useMove(i,slot){
     const b=this.b&&this.b[i]; if(!b||this.done||!this.movesOn||!b.alive||b.used[slot]||this.t<0.4) return false;
-    const m=BF.moveById(this.f[i].d,b.moves[slot]); if(!m) return false;
-    b.used[slot]=true; BF.MOVE_FX[m.kind](this,b,this.b[1-i]); b.moveT=Math.max(b.moveT,3); b.moveEl=m.el;
-    this.events.push({k:'move',i,id:m.id,name:m.name,el:m.el,kind:m.kind}); return true;
+    const d=this.f[i].d, m=BF.moveById(d,b.moves[slot]); if(!m) return false;
+    const pr=d.prog; if(pr&&pr.unlocked&&!pr.unlocked.includes(m.id)) return false;   // part not leveled enough yet
+    const lv=Math.min(3,(pr&&pr.moveLv&&pr.moveLv[m.id])||1), mul=(1+0.25*(lv-1))*(b.perks.includes('focus')?1.15:1);
+    const before=Object.assign({},b.fx), kick0=b.next.kick||0;
+    b.used[slot]=true; BF.MOVE_FX[m.kind](this,b,this.b[1-i],mul);
+    for(const k in b.fx) if(b.fx[k]>(before[k]||0)) b.fx[k]=(before[k]||0)+(b.fx[k]-(before[k]||0))*mul;   // upgraded moves last longer
+    if(b.next.kick>kick0) b.next.kick=1+(b.next.kick-1)*mul;
+    b.moveT=Math.max(b.moveT,3); b.moveEl=m.el;
+    this.events.push({k:'move',i,id:m.id,name:m.name+(lv>1?' '+['','II','III'][lv-1]:''),el:m.el,kind:m.kind}); return true;
   }
-  lean(i,x,y){ const b=this.b&&this.b[i]; if(!b||!b.alive||b.leanCd>0) return false; b.lean={x,y}; b.leanT=0.45; b.leanCd=0.9; this.events.push({k:'lean',i,x,y}); return true; }
+  lean(i,x,y){ const b=this.b&&this.b[i]; if(!b||!b.alive||b.leanCd>0) return false; b.lean={x,y}; b.leanT=0.45; b.leanCd=b.perks.includes('quick')?0.68:0.9; this.events.push({k:'lean',i,x,y}); return true; }
   applyStatus(t,s){ if(!s) return; if(s==='knock'){ return; } t.st[s]=STATUS_T[s]||2; this.events.push({k:'status',i:t.i,s}); }
   zoneAt(a){ a=((a%TAU)+TAU)%TAU; for(const z of this.st.zones){ let d=a-z.a; d=((d%TAU)+TAU)%TAU; if(d<z.w) return z.type; } return null; }
   step(dt){

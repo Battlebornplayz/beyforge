@@ -215,7 +215,8 @@ BF.UI = {
       ${allowed.length>1?`<div class="optrow"><span>2nd type</span><div class="elrow">${allowed.filter(e=>e!==els[0]).map(e=>chip(e,'data-els',els[1]===e)).join('')}<button type="button" class="elchip${els[1]?'':' on'}" data-els="">None</button></div></div>`:''}
       <div class="fine">Strong vs ${strong} · weak to ${weak}. Your parts allow: ${Object.entries(pe).map(([k,e])=>`${BF.PART_LABEL[k]} ${BF.ELEMENTS[e].icon}`).join(' · ')}</div>
       <div class="kitmoves">${['blade','core','driver'].map(part=>`<div class="kitpart"><span>${BF.PART_LABEL[part]}</span>${pools[part].map(m=>`<div class="kitmv" style="--c:${BF.ELEMENTS[m.el].color}" title="${esc(BF.MOVE_KINDS[m.kind].desc)}"><i>${BF.ELEMENTS[m.el].icon}</i><b>${esc(m.name)}</b><em>${esc(BF.MOVE_KINDS[m.kind].desc)}</em></div>`).join('')}</div>`).join('')}</div>
-      <div class="fine">Pick 1 move per part each launch. Change the blade shape, ratchet/disc or tip to get different moves.</div></div>`;
+      <div class="fine">Pick 1 move per part each launch. Change the blade shape, ratchet/disc or tip to get different moves.</div>
+      ${BF.Parts?`<div class="optrow mintrow"><span>Own it</span><div class="mintbtns">${['blade','core','driver'].map(s=>`<button type="button" class="btn sm" data-mint="${s}">Mint ${BF.PART_LABEL[s].toLowerCase()} <span class="coin">${BF.MINT_PRICE}</span></button>`).join('')}</div></div><div class="fine">Minting turns this design’s part into an owned copy with its own IVs, for Battle Beys.</div>`:''}</div>`;
   },
   sheet(root,d,asm,mp,actions){
     const an=actions.an, nm=BF.naming(d, an.type);
@@ -285,6 +286,7 @@ BF.UI = {
       </div>`;
     root.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()=>actions[b.dataset.act](b)));
     root.querySelectorAll('[data-ex]').forEach(b=>b.addEventListener('click',()=>actions.toggleEx(b.dataset.ex)));
+    root.querySelectorAll('[data-mint]').forEach(b=>b.addEventListener('click',()=>actions.mint(b.dataset.mint)));
     root.querySelectorAll('[data-elp]').forEach(b=>b.addEventListener('click',()=>actions.setEl('p',b.dataset.elp)));
     root.querySelectorAll('[data-els]').forEach(b=>b.addEventListener('click',()=>actions.setEl('s',b.dataset.els||null)));
     root.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>actions.preset(b.dataset.preset)));

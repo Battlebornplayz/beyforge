@@ -39,13 +39,16 @@ const B = BF.BattleUI = {
   // ---------- picking fighters ----------
   async options(){
     this.lib=await BF.Store.loadLibrary().catch(()=>[]);
-    const o=[['forge','Your Forge Bey — '+BF.naming(BF.App.d,BF.App.an&&BF.App.an.type).full]];
+    const o=(BF.Parts?BF.Parts.decks:[]).filter(k=>BF.Parts.deckDesign(k)).map(k=>['deck:'+k.id,'⚔ Battle Bey — '+k.name]);
+    if(this.mode==='online') return o;
+    o.push(['forge','Practice — your Forge Bey ('+BF.naming(BF.App.d,BF.App.an&&BF.App.an.type).full+')']);
     this.lib.forEach(r=>o.push(['lib:'+r.id,'Library — '+r.meta.full]));
     BF.PRESETS.forEach(p=>o.push(['preset:'+p.id,'Preset — '+p.name+' ('+(p.sys==='X'?'X':'Burst')+')']));
     o.push(['random','Random Bey']);
     return o;
   },
   designFor(key){
+    if(key&&key.startsWith('deck:')){ const k=BF.Parts.decks.find(x=>'deck:'+x.id===key); const d=k&&BF.Parts.deckDesign(k); if(d) return d; }
     if(key==='forge') return BF.clone(BF.App.d);
     if(key.startsWith('lib:')){ const r=this.lib.find(x=>'lib:'+x.id===key); if(r) return BF.normalize(BF.clone(r.design)); }
     if(key.startsWith('preset:')) return BF.fromPreset(BF.PRESETS.find(p=>'preset:'+p.id===key));
@@ -56,7 +59,9 @@ const B = BF.BattleUI = {
   // ---------- setup screen ----------
   async renderSetup(){
     this.st='setup'; this.hud(false); $('#banner').hidden=true;
-    const opts=await this.options(); const sel=(id,v)=>`<select id="${id}">${opts.map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
+    const opts=await this.options();
+    if(!opts.find(o=>o[0]===this.picks.p1) && opts.length) this.picks.p1=opts[0][0];
+    const sel=(id,v)=>`<select id="${id}">${opts.map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
     const net=BF.Net, online=this.mode==='online';
     let onlineHtml='';
     if(online){
@@ -79,7 +84,8 @@ const B = BF.BattleUI = {
     this.panel.innerHTML=`
       <h2>Battle</h2>
       <div class="seg" id="modeSeg">${[['cpu','vs CPU'],['local','2 players'],['online','Online']].map(([k,l])=>`<button type="button" class="${this.mode===k?'on':''}" data-mode="${k}">${l}</button>`).join('')}</div>
-      <label class="fl">${online?'Your Bey':'Player 1'}${sel('pick1',this.picks.p1)}</label>
+      ${online&&!opts.length?`<div class="netbox"><b>Online needs a Battle Bey</b><span class="dim">Battle Beys are built from parts you own. Grab your free starter in the Parts tab.</span><button class="btn primary" id="toParts">Open Parts</button></div>`:`<label class="fl">${online?'Your Bey':'Player 1'}${sel('pick1',this.picks.p1)}</label>`}
+      ${!online&&!String(this.picks.p1).startsWith('deck:')?'<div class="fine">Practice Beys don’t earn part XP or drops — use a ⚔ Battle Bey for that.</div>':''}
       ${online?'':`<label class="fl">${this.mode==='cpu'?'CPU opponent':'Player 2'}${sel('pick2',this.picks.p2)}</label>`}
       ${this.mode==='cpu'?`<div class="fl">CPU difficulty<div class="seg" id="cpuSeg">${Object.entries(BF.CPU_LEVELS).map(([k,l])=>`<button type="button" class="${(BF.Settings.get('cpuLevel')||'normal')===k?'on':''}" data-cpu="${k}">${l}</button>`).join('')}</div></div>`:''}
       ${hostCtl?`<div class="fl">Stadium<div class="seg" id="stSeg">${[['X','Xtreme'],['Burst','Burst']].map(([k,l])=>`<button type="button" class="${this.stadiumKind===k?'on':''}" data-st="${k}">${l}</button>`).join('')}</div></div>
@@ -94,6 +100,7 @@ const B = BF.BattleUI = {
     const p1=$('#pick1'); if(p1) p1.onchange=()=>{ this.picks.p1=p1.value; if(online && net.status==='connected') BF.Net.send({t:'hello',design:this.myDesign(),name:this.myName()}); this.renderSetup(); };
     this.panel.querySelectorAll('[data-cpu]').forEach(b=>b.onclick=()=>{ BF.Settings.set('cpuLevel',b.dataset.cpu); this.panel.querySelectorAll('[data-cpu]').forEach(x=>x.classList.toggle('on',x===b)); });
     const p2=$('#pick2'); if(p2) p2.onchange=()=>{ this.picks.p2=p2.value; };
+    const tp=$('#toParts'); if(tp) tp.onclick=()=>document.querySelector('#tabs [data-tab=parts]').click();
     const fb=$('#fightBtn'); if(fb) fb.onclick=()=>this.localStart();
     const hb=$('#hostBtn'); if(hb) hb.onclick=()=>{ if(!BF.Net.available()) return BF.App.toast('Online play needs an internet connection','bad'); BF.Net.host(); };
     const jb=$('#joinBtn'); if(jb) jb.onclick=()=>{ const c=$('#joinCode').value; if(c.length!==4) return BF.App.toast('Codes are 4 letters','bad'); BF.Net.join(c); };
@@ -124,17 +131,19 @@ const B = BF.BattleUI = {
   // ---------- match flow ----------
   localStart(){
     const d1=this.designFor(this.picks.p1), d2=this.designFor(this.picks.p2);
-    const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), moves:BF.Settings.get('moves')!==false, d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
+    const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), moves:BF.Settings.get('moves')!==false, prog:true, d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
   },
   hostStart(){
     const ranked=this.queue==='ranked';
     if(ranked){ const a=BF.Ranked.check(this.myDesign()), b=BF.Ranked.check(this.remote.design);
       if(a.length||b.length){ BF.App.toast((a.length?'Your Bey: '+a[0]:this.remote.name+': '+b[0])+' — not ranked-legal','bad'); return; } }
-    const st=ranked?BF.Ranked.stadium():this.stadium(); const m={t:'start', ranked, stadium:st, rules:ranked?BF.Ranked.matchRules():BF.Settings.rulesFor(st.kind), moves:ranked?BF.Ranked.rules.moves!==false:BF.Settings.get('moves')!==false, decayK:ranked?BF.Ranked.decayK():BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
+    const st=ranked?BF.Ranked.stadium():this.stadium(); const m={t:'start', ranked, stadium:st, rules:ranked?BF.Ranked.matchRules():BF.Settings.rulesFor(st.kind), moves:ranked?BF.Ranked.rules.moves!==false:BF.Settings.get('moves')!==false, prog:ranked?!!BF.Ranked.rules.progression:true, decayK:ranked?BF.Ranked.decayK():BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
     BF.Net.send(m); this.startMatch(m);
   },
   startMatch(m){
     this.match=m; this.st='launch'; this.score=[0,0]; this.round=1; this.seed=m.seed; this.lastMoves=[[],[]]; this.movesOn=m.moves!==false;
+    if(m.prog===false){ [m.d1,m.d2].forEach(d=>{ if(d&&d.prog) d.prog={copyIds:d.prog.copyIds,tiers:d.prog.tiers,shiny:d.prog.shiny}; }); }
+    this.progOn=m.prog!==false;
     this.F=[BF.fighter(m.d1,m.n1), BF.fighter(m.d2,m.n2)];
     this.me = this.mode==='online' && BF.Net.role==='guest' ? 1 : 0;
     this.arena.setup(m.stadium,this.F[0],this.F[1]);
@@ -152,6 +161,8 @@ const B = BF.BattleUI = {
   launchPanel(who){
     const f=this.F[who], col=who===0?'c1':'c2', dual=f.d.spin==='dual';
     const label=this.mode==='local'?`Player ${who+1}`:this.mode==='cpu'?'Your launch':'Your launch';
+    const perks=(this.progOn&&(this.mode!=='local'||who===0)&&BF.Parts)?BF.Parts.blader().filter(k=>['steady','grit','quick','focus'].includes(k)):[];
+    const sweet=perks.includes('steady')?0.84:0.9;
     this.panel.className='bpanel launch';
     this.panel.innerHTML=`
       <div class="lp-head"><span class="${col}">${esc(label)}</span><b>${esc(f.name)}</b><span class="dim">Round ${this.round}</span></div>
@@ -181,11 +192,11 @@ const B = BF.BattleUI = {
     let spin='right'; this.panel.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ spin=b.dataset.sp; this.panel.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); });
     const ai=$('#angIn'); ai.oninput=()=>$('#angOut').textContent=(ai.value>0?'+':'')+ai.value+'°';
     const btn=$('#revBtn'), fill=$('#meterFill'); let t0=0, raf=0, power=0;
-    const tick=()=>{ const t=(performance.now()-t0)/1000; const ph=(t/1.3)%2; power=ph<1?ph:2-ph; fill.style.width=(power*100)+'%'; fill.classList.toggle('hot',power>0.9); raf=requestAnimationFrame(tick); };
+    const tick=()=>{ const t=(performance.now()-t0)/1000; const ph=(t/1.3)%2; power=ph<1?ph:2-ph; fill.style.width=(power*100)+'%'; fill.classList.toggle('hot',power>sweet); raf=requestAnimationFrame(tick); };
     const start=e=>{ e.preventDefault(); if(t0) return; t0=performance.now(); btn.classList.add('revving'); tick(); BF.Sfx && BF.Sfx.rev(true); };
     const end=e=>{ if(!t0) return; e&&e.preventDefault(); cancelAnimationFrame(raf); BF.Sfx && BF.Sfx.rev(false);
-      const p=Math.max(0.35,power); btn.disabled=true; btn.textContent=p>0.9?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
-      this.lockLaunch(who,{power:p,angle:+ai.value,spin,mode,shot,pos,moves:picks.slice()}); };
+      const p=Math.max(0.35,power); btn.disabled=true; const P2=p>sweet?1:p; btn.textContent=p>sweet?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
+      this.lockLaunch(who,{power:P2,angle:+ai.value,spin,mode,shot,pos,moves:picks.slice(),perks}); };
     btn.addEventListener('pointerdown',start); btn.addEventListener('pointerup',end); btn.addEventListener('pointerleave',end);
     btn.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') start(e); }); btn.addEventListener('keyup',e=>{ if(e.key===' '||e.key==='Enter') end(e); });
   },
@@ -253,21 +264,27 @@ const B = BF.BattleUI = {
     this.st='matchEnd'; const win=this.score[0]>this.score[1]?0:1; const ban=$('#banner'); ban.hidden=true;
     let line='';
     if(this.mode!=='local'){ const won=win===this.me; const rec=BF.Records.add(won,this.lastHow||'spin',this.F[this.me].name,this.mode==='online',!!(this.match&&this.match.ranked)); line=`<div class="record">${won?'Victory':'Defeat'} · record ${rec.wins}–${rec.losses}</div>`; BF.Ach && BF.Ach.check({won,how:this.lastHow,score:this.score,me:this.me,mode:this.mode,f:this.F[this.me]}); }
+    const myD=this.me===1?this.match.d2:this.match.d1;
+    if(this.mode!=='local' && BF.Parts && myD && myD.prog && myD.prog.copyIds) setTimeout(()=>BF.Parts.reward(myD,{won:win===this.me,rounds:this.round,mode:this.mode,cpuLevel:BF.Settings.get('cpuLevel')}).then(r=>{
+      if(!r) return; const box=document.querySelector('.bpanel.result .rewards'); if(!box) return;
+      box.innerHTML=`<div>+${r.xpGain} part XP</div>${r.ups.map(u=>`<div class="lvup">⬆ ${esc(u)}</div>`).join('')}${r.drop?`<div class="dropline" style="--c:${BF.RARITY[r.drop.rarity].color}">🎁 Part drop: <b>${r.drop.shiny?'✨ Shiny ':''}${esc(BF.RARITY[r.drop.rarity].label)} ${esc(r.drop.name)}</b></div>`:''}`;
+      if(r.drop) BF.Sfx&&BF.Sfx.finish&&BF.Sfx.finish('xtreme'); }).catch(e=>console.warn(e)),300);
     this.panel.className='bpanel result';
     this.panel.innerHTML=`<div class="res-title ${win===0?'c1':'c2'}">${esc(this.F[win].name)} wins</div>
-      <div class="res-score"><b class="c1">${this.score[0]}</b><span>–</span><b class="c2">${this.score[1]}</b></div>${line}
+      <div class="res-score"><b class="c1">${this.score[0]}</b><span>–</span><b class="c2">${this.score[1]}</b></div>${line}<div class="rewards"></div>
       <div class="res-acts">${this.mode==='online'&&BF.Net.role==='guest'?'<button class="btn primary" id="rematch">Ask for rematch</button>':'<button class="btn primary" id="rematch">Rematch</button>'}<button class="btn" id="backSetup">Change Beys</button></div>`;
     $('#rematch').onclick=()=>{ if(this.mode==='online'){ if(BF.Net.role==='host') this.hostStart(); else { BF.Net.send({t:'rematch'}); $('#rematch').textContent='Asked…'; } } else this.startMatch(this.match); };
     $('#backSetup').onclick=()=>this.renderSetup();
   },
   // ---------- v5: launch formations, move bar, lean ----------
   moveKeys(p){ return this.mode==='local'&&p===1?['8','9','0']:['1','2','3']; },
+  moveLocked(who,id){ const pr=this.F[who].d.prog; return !!(pr&&pr.unlocked&&!pr.unlocked.includes(id)); },
   defaultPicks(who){ const pools=BF.movePools(this.F[who].d), last=this.lastMoves[who]||[];
-    return ['blade','core','driver'].map(k=>(pools[k].find(m=>!last.includes(m.id))||pools[k][0]).id); },
+    return ['blade','core','driver'].map(k=>(pools[k].find(m=>!last.includes(m.id)&&!this.moveLocked(who,m.id))||pools[k].find(m=>!this.moveLocked(who,m.id))||pools[k][0]).id); },
   movePicker(who){
     const pools=BF.movePools(this.F[who].d), last=this.lastMoves[who]||[], picks=this.defaultPicks(who);
-    return `<div class="fl">Launch formation — pick 1 move per part<div class="mvpick">${['blade','core','driver'].map((part,pi)=>`<div class="mvrow"><span class="mvpart">${BF.PART_LABEL[part]}</span>${pools[part].map(m=>{ const E=BF.ELEMENTS[m.el], cd=last.includes(m.id);
-      return `<button type="button" class="mvchip${picks[pi]===m.id?' on':''}" data-part="${pi}" data-mv="${m.id}" style="--c:${E.color}"${cd?' disabled':''} title="${esc(BF.MOVE_KINDS[m.kind].desc)}"><i>${E.icon}</i><b>${esc(m.name)}</b>${cd?'<em>cooldown</em>':''}</button>`; }).join('')}</div>`).join('')}</div></div>`;
+    return `<div class="fl">Launch formation — pick 1 move per part<div class="mvpick">${['blade','core','driver'].map((part,pi)=>`<div class="mvrow"><span class="mvpart">${BF.PART_LABEL[part]}</span>${pools[part].map(m=>{ const E=BF.ELEMENTS[m.el], cd=last.includes(m.id), lk=this.moveLocked(who,m.id), pr=this.F[who].d.prog, lv=(pr&&pr.moveLv&&pr.moveLv[m.id])||1;
+      return `<button type="button" class="mvchip${picks[pi]===m.id?' on':''}" data-part="${pi}" data-mv="${m.id}" style="--c:${E.color}"${cd||lk?' disabled':''} title="${esc(BF.MOVE_KINDS[m.kind].desc)}"><i>${E.icon}</i><b>${esc(m.name)}${lv>1?' '+['','II','III'][Math.min(2,lv-1)]:''}</b>${lk?`<em>part Lv ${m.slot===1?3:8}</em>`:cd?'<em>cooldown</em>':''}</button>`; }).join('')}</div>`).join('')}</div></div>`;
   },
   myPlayers(){ return this.mode==='local'?[0,1]:this.mode==='online'?[this.me]:[0]; },
   showMoveBar(){

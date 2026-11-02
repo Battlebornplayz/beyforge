@@ -49,6 +49,22 @@ service cloud.firestore {
         allow read: if signedIn() && (uid == me() || resource.data.get('public', false) == true || can('moderate'));
         allow write: if signedIn() && uid == me();
       }
+      // owned part copies. IVs (and rarity/shiny/slot) can never be changed by the player —
+      // only the owner or staff with the editIV permission.
+      match /parts/{pid} {
+        function ivOk(iv) {
+          return iv.keys().hasOnly(['atk','def','sta','brs','stb'])
+            && iv.atk is int && iv.atk >= 0 && iv.atk <= 31 && iv.def is int && iv.def >= 0 && iv.def <= 31
+            && iv.sta is int && iv.sta >= 0 && iv.sta <= 31 && iv.brs is int && iv.brs >= 0 && iv.brs <= 31
+            && iv.stb is int && iv.stb >= 0 && iv.stb <= 31;
+        }
+        allow read: if signedIn() && (uid == me() || can('editIV'));
+        allow create: if signedIn() && uid == me() && notBanned() && ivOk(request.resource.data.iv);
+        allow update: if signedIn() && (
+            (uid == me() && notBanned() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['iv','rarity','shiny','slot','system']))
+            || (can('editIV') && ivOk(request.resource.data.iv)) );
+        allow delete: if signedIn() && (uid == me() || can('editIV'));
+      }
       // friends list entries
       match /friends/{fid} {
         allow read: if signedIn() && (uid == me() || fid == me());

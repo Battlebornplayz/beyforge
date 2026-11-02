@@ -3,7 +3,7 @@
 'use strict';
 const BF=window.BF, A=BF.Account;
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const PERMS={grant:'Give coins, XP, unlocks & ranks',moderate:'Moderate chat & gallery, ban players',manageRoles:'Create & edit ranks',manageGame:'Post announcements'};
+const PERMS={grant:'Give coins, XP, unlocks & ranks',moderate:'Moderate chat & gallery, ban players',manageRoles:'Create & edit ranks',manageGame:'Post announcements',editIV:'Edit part IVs'};
 
 BF.Admin = {
   tab:'ranks',
@@ -34,7 +34,7 @@ BF.Admin = {
     });
     el.querySelector('#newRank').onsubmit=e=>{ e.preventDefault(); const n=el.querySelector('#rankName').value.trim(); if(!n) return;
       const id=n.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24)||('rank'+Date.now());
-      col.doc(id).set({name:n,color:'#a07bff',perms:{grant:false,moderate:false,manageRoles:false,manageGame:false},order:Object.keys(A.roles).length+1}).then(()=>BF.App.toast('Rank created','good')).catch(err); };
+      col.doc(id).set({name:n,color:'#a07bff',perms:{grant:false,moderate:false,manageRoles:false,manageGame:false,editIV:false},order:Object.keys(A.roles).length+1}).then(()=>BF.App.toast('Rank created','good')).catch(err); };
   },
   players(el){
     el.innerHTML=`<form class="addrow" id="pSearch"><input class="txt sm" id="pQ" placeholder="Search blader name" maxlength="16" autocomplete="off"><button class="btn">Search</button></form><div id="pRes" class="plist"></div>`;
@@ -50,7 +50,7 @@ BF.Admin = {
     return `<div class="prow" data-uid="${p.uid}">
       <div class="pr-id">${p.avatar?`<img class="av" style="--s:34px" src="${p.avatar}" alt="">`:`<span class="av ph" style="--s:34px">${esc((p.name||'?')[0].toUpperCase())}</span>`}<div><b>${esc(p.name)}</b><span>LV ${p.level||1} · ${p.coins||0} coins · ${(p.stats&&p.stats.wins)||0}W${p.banned?' · <em class="bad">BANNED</em>':''}</span></div></div>
       ${A.can('grant')&&!me?`<select data-a="role" aria-label="Rank">${opts}</select>`:'<span class="dim small">'+(me?'You':'')+'</span>'}
-      ${A.can('grant')?`<div class="grant"><input class="num" type="number" value="100" min="-99999" max="99999" data-a="amt" aria-label="Amount"><button class="btn" data-a="coins">+ Coins</button><button class="btn" data-a="xp">+ XP</button><button class="btn" data-a="all" title="Unlock every cosmetic">Unlock all</button></div>`:''}
+      ${A.can('grant')?`<div class="grant"><input class="num" type="number" value="100" min="-99999" max="99999" data-a="amt" aria-label="Amount"><button class="btn" data-a="coins">+ Coins</button><button class="btn" data-a="xp">+ XP</button><button class="btn" data-a="all" title="Unlock every cosmetic">Unlock all</button><button class="btn" data-a="pack">Send pack</button><button class="btn" data-a="crate">Send crate</button></div>`:''}
       ${(A.can('moderate')||A.can('grant'))&&!me?`<button class="btn ${p.banned?'':'ghost'}" data-a="ban">${p.banned?'Unban':'Ban'}</button>`:''}
     </div>`;
   },
@@ -62,6 +62,7 @@ BF.Admin = {
         if(a==='coins') c.onclick=()=>ref.update({coins:FV.increment(amt())}).then(()=>BF.App.toast(`Gave ${p.name} ${amt()} coins`,'good')).catch(err);
         if(a==='xp') c.onclick=()=>{ const xp=Math.max(0,(p.xp||0)+amt()); ref.update({xp,level:BF.levelFor(xp)}).then(()=>{ p.xp=xp; BF.App.toast(`Gave ${p.name} ${amt()} XP`,'good'); }).catch(err); };
         if(a==='all') c.onclick=()=>ref.update({unlocks:FV.arrayUnion('*')}).then(()=>BF.App.toast(`Unlocked everything for ${p.name}`,'good')).catch(err);
+        if(a==='pack'||a==='crate') c.onclick=()=>ref.collection('inbox').add({type:'pack',kind:a,from:A.user.uid,fromName:A.profile.name,ts:FV.serverTimestamp()}).then(()=>BF.App.toast(`Sent ${p.name} a ${a==='crate'?'legendary crate':'booster pack'}`,'good')).catch(err);
         if(a==='ban') c.onclick=()=>ref.update({banned:!p.banned}).then(()=>{ p.banned=!p.banned; c.textContent=p.banned?'Unban':'Ban'; BF.App.toast(p.banned?`${p.name} banned`:`${p.name} unbanned`); }).catch(err);
       }); });
   },

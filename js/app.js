@@ -26,7 +26,7 @@ const App = BF.App = {
     this.bindToolbar(); this.bindTabs(); this.bindKeys(); this.bindFolder(); this.bindModal();
     const mb=$('#muteBtn'); const pm=()=>mb.classList.toggle('muted',BF.Sfx.muted); pm(); mb.addEventListener('click',()=>{ BF.Sfx.toggle(); pm(); });
     BF.Store.init();
-    BF.Social.init(); BF.Account.init(); BF.Native.init(); BF.Card.bind(); this.bindLibrary(); BF.Share.checkHash(); BF.Tour.auto();
+    BF.Social.init(); BF.Account.init(); BF.Native.init(); BF.Card.bind(); BF.Parts.init(); this.bindLibrary(); BF.Share.checkHash(); BF.Tour.auto();
     $('#scExit').addEventListener('click',()=>BF.Showcase.toggle()); $('#scCard').addEventListener('click',()=>BF.Card.open(BF.clone(this.d)));
     $('#annX').addEventListener('click',()=>{ $('#announce').hidden=true; BF.LS.set('bf.announceSeen',this._ann||''); });
     this.logo();
@@ -76,6 +76,7 @@ const App = BF.App = {
       card:()=>BF.Card.open(BF.clone(this.d)),
       showcase:()=>BF.Showcase.toggle(),
       share:()=>BF.Share.open(BF.clone(this.d)),
+      mint:s=>BF.PartsUI.mint(s),
       setEl:(k,v)=>{ this.push(); this.d.element=Object.assign({p:null,s:null},this.d.element||{}); this.d.element[k]=v; if(k==='p'&&this.d.element.s===v) this.d.element.s=null; this.renderSheet(); },
       prompt:()=>this.showPrompt(),
       reroll:()=>{ this.push(); this.d.nameSeed=Math.floor(Math.random()*99999); this.rebuild(); },
@@ -135,6 +136,7 @@ const App = BF.App = {
     document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>{
       document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
       document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!=='view-'+b.dataset.tab);
+      if(b.dataset.tab==='parts') BF.PartsUI.render();
       if(b.dataset.tab==='library') this.libView==='gallery'?BF.Gallery.render($('#galGrid')):this.renderLibrary();
       if(b.dataset.tab==='forge') this.viewer.resize();
       if(b.dataset.tab==='profile') BF.Social.render();

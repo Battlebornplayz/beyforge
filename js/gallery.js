@@ -103,7 +103,7 @@ BF.Trades = {
   listen(){
     const a=A(); if(!a||!a.profile||this._l===a.user.uid) return; this._l=a.user.uid;
     a.db.collection('trades').where('from','==',a.user.uid).where('status','==','accepted').onSnapshot(async qs=>{
-      for(const d of qs.docs){ const t=d.data();
+      for(const d of qs.docs){ const t=d.data(); if(t.counter&&t.counter.kind==='part') continue;
         try{ await BF.Store.saveDesign(BF.normalize(BF.clone(t.counter.design)),t.counter.meta,t.counter.thumb); await BF.Store.deleteDesign({id:t.offer.id}).catch(()=>{});
           await d.ref.update({status:'done'}); BF.App.toast(`${t.toName} took your trade — you got ${t.counter.meta.full}`,'good'); }catch(e){ console.warn(e); } }
     },()=>{});
