@@ -43,4 +43,6 @@ jobs:
         run: |
           gh release view studio >/dev/null 2>&1 || gh release create studio --prerelease --latest=false --title "BeyForge Studio $VERSION" --notes "Owner dashboard for BeyForge. Download BeyForge-Studio-Setup.exe below."
           gh release upload studio studio-desktop/dist/BeyForge-Studio-Setup.exe --clobber
-          gh release edit studio --title "BeyForge Studio $VERSION" --prerelease --latest=false
+          awk '/^## /{n++} n==1' CHANGELOG.md > top.md
+          { echo "Owner dashboard for BeyForge. Download **BeyForge-Studio-Setup.exe** below (it asks before updating)."; echo; echo "## Latest game update: $(head -1 top.md | sed 's/^## //')"; tail -n +2 top.md; } > notes.md
+          gh release edit studio --title "BeyForge Studio $VERSION" --prerelease --latest=false --notes-file notes.md

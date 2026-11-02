@@ -1,0 +1,28 @@
+name: Write update logs into past releases
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/release-notes/backfill.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Update each release's title and notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          rel = json.load(open('.github/release-notes/backfill.json'))
+          for tag, r in rel.items():
+              p = subprocess.run(['gh', 'api', '-X', 'PATCH', f"repos/${{ github.repository }}/releases/{r['id']}",
+                                  '-f', f"name={r['name']}", '-f', f"body={r['body']}", '--jq', '.name'], capture_output=True, text=True)
+              print(tag, (p.stdout.strip() or p.stderr.strip())[:120])
+          PY

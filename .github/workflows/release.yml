@@ -84,14 +84,26 @@ jobs:
         run: |
           cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../BeyForge.apk
-      - name: Add APK to the release
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        run: |
+          awk '/^## /{n++} n==1' CHANGELOG.md > top.md
+          title=$(head -1 top.md | sed 's/^## //')
+          {
+            echo "# What's new in $title"
+            tail -n +2 top.md
+            echo
+            echo "---"
+            echo "**Windows:** download BeyForge-Setup.exe (it updates itself after that)."
+            echo "**Android:** download BeyForge.apk and allow installing from your browser."
+            echo "Both apps load the latest BeyForge automatically. Full history: [CHANGELOG.md](https://github.com/Battlebornplayz/beyforge/blob/main/CHANGELOG.md)"
+          } > notes.md
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+      - name: Add APK + update log to the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          name: BeyForge ${{ env.VERSION }}
+          name: BeyForge ${{ env.VERSION }} · ${{ steps.notes.outputs.title }}
           files: BeyForge.apk
           make_latest: true
-          body: |
-            **Windows:** download BeyForge-Setup.exe (it updates itself after that).
-            **Android:** download BeyForge.apk and allow installing from your browser.
-            Both apps load the latest BeyForge automatically.
+          body_path: notes.md
