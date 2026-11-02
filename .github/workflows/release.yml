@@ -1,0 +1,97 @@
+name: Build apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+env:
+  VERSION: 4.3.${{ github.run_number }}
+  LIVE_URL: https://battlebornplayz.github.io/beyforge/
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - name: Stage web app (offline fallback)
+        shell: bash
+        run: |
+          mkdir -p desktop/app
+          cp -r index.html auth.html manifest.webmanifest version.json css js lib icons desktop/app/
+      - name: Build and publish BeyForge-Setup.exe
+        working-directory: desktop
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install --no-audit --no-fund
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          npx electron-builder --win nsis --publish always
+
+  android:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Stage web app (offline fallback)
+        run: |
+          mkdir -p www
+          cp -r index.html auth.html manifest.webmanifest version.json css js lib icons www/
+      - name: Create Capacitor Android project
+        run: |
+          npm init -y >/dev/null
+          npm install @capacitor/core@6.2.0 @capacitor/cli@6.2.0 @capacitor/android@6.2.0 @capacitor/app@6.0.2 @capacitor/browser@6.0.4
+          cat > capacitor.config.json <<JSON
+          { "appId": "com.battlebornplayz.beyforge", "appName": "BeyForge", "webDir": "www",
+            "server": { "url": "${LIVE_URL}?shell=android&build=${{ github.run_number }}", "errorPath": "index.html",
+                        "androidScheme": "https", "allowNavigation": ["battlebornplayz.github.io"] },
+            "android": { "backgroundColor": "#07060e" } }
+          JSON
+          npx cap add android
+          npx cap sync android
+      - name: Deep links, version and icon
+        run: |
+          python3 - <<'PY'
+          import re
+          p='android/app/src/main/AndroidManifest.xml'; s=open(p).read()
+          f='<intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="beyforge" /></intent-filter>'
+          s=s.replace('</activity>', f+'</activity>',1); open(p,'w').write(s)
+          g='android/app/build.gradle'; t=open(g).read()
+          t=re.sub(r'versionCode \d+','versionCode ${{ github.run_number }}',t); t=re.sub(r'versionName "[^"]*"','versionName "${{ env.VERSION }}"',t); open(g,'w').write(t)
+          PY
+          cp -r android-res/* android/app/src/main/res/
+          f=android/app/src/main/res/values/ic_launcher_background.xml
+          [ -f "$f" ] && sed -i 's/#FFFFFF/#07060E/I' "$f" || true
+      - name: Build APK
+        run: |
+          cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../BeyForge.apk
+      - name: Add APK to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: BeyForge ${{ env.VERSION }}
+          files: BeyForge.apk
+          make_latest: true
+          body: |
+            **Windows:** download BeyForge-Setup.exe (it updates itself after that).
+            **Android:** download BeyForge.apk and allow installing from your browser.
+            Both apps load the latest BeyForge automatically.

@@ -96,7 +96,7 @@ const S = BF.Social = {
     root.innerHTML=`<div class="authcard">
       <h2>Become a Blader</h2><p class="dim">An account saves your Beys, records and settings to the cloud — same stuff on your PC and phone — and unlocks friends, chat and battle invites.</p>
       <button class="btn google" id="gBtn"${app?' disabled':''}><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.8-5.4 3.8-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.9 0 3.1.8 3.8 1.4l2.6-2.5C16.8 3.2 14.6 2.2 12 2.2 6.6 2.2 2.2 6.6 2.2 12s4.4 9.8 9.8 9.8c5.7 0 9.4-4 9.4-9.6 0-.6-.1-1.1-.2-1.6H12z"/></svg>Continue with Google</button>
-      ${app?`<div class="fine">Google sign-in works on the website version. In the app, use a blader name + password (you can link Google later from the website).</div>`:''}
+      ${app?`<div class="fine">Google sign-in needs the website or the BeyForge app — this local copy can’t do it. Use a blader name + password here.</div>`:BF.Native&&BF.Native.isApp()?`<div class="fine">Google opens in your browser, then brings you right back.</div>`:''}
       <div class="or"><span>or</span></div>
       <div class="seg" id="authSeg"><button type="button" class="on" data-m="in">Sign in</button><button type="button" data-m="up">Create account</button></div>
       <form id="authForm" class="authform">

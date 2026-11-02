@@ -26,10 +26,11 @@ const App = BF.App = {
     this.bindToolbar(); this.bindTabs(); this.bindKeys(); this.bindFolder(); this.bindModal();
     const mb=$('#muteBtn'); const pm=()=>mb.classList.toggle('muted',BF.Sfx.muted); pm(); mb.addEventListener('click',()=>{ BF.Sfx.toggle(); pm(); });
     BF.Store.init();
-    BF.Social.init(); BF.Account.init();
+    BF.Social.init(); BF.Account.init(); BF.Native.init();
     $('#annX').addEventListener('click',()=>{ $('#announce').hidden=true; BF.LS.set('bf.announceSeen',this._ann||''); });
     this.logo();
   },
+  banner(text,btn,fn){ const b=$('#announce'); $('#annMsg').innerHTML=''; $('#annMsg').textContent=text; if(btn){ const k=document.createElement('button'); k.className='btn primary'; k.textContent=btn; k.style.marginLeft='12px'; k.onclick=fn; $('#annMsg').appendChild(k); } b.hidden=false; },
   announce(text){ this._ann=text; $('#annMsg').textContent=text; $('#announce').hidden=false; },
   toast(msg,kind){ const t=$('#toast'); t.textContent=msg; t.className='toast show '+(kind||''); clearTimeout(this._tt); this._tt=setTimeout(()=>t.className='toast',2600); },
   snapshot(){ return JSON.stringify(this.d); },

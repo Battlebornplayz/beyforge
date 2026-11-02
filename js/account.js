@@ -12,7 +12,7 @@ const A = BF.Account = {
   ready:false, user:null, profile:null, isOwner:false, perms:{}, roles:{}, listeners:[], unsub:[],
   on(f){ this.listeners.push(f); }, emit(){ this.listeners.forEach(f=>{ try{ f(this); }catch(e){ console.error(e); } }); },
   available(){ return !!(window.firebase && window.BF_FIREBASE); },
-  inApp(){ return !!window.Capacitor || location.protocol==='file:'; },   // Google popups need a real website
+  inApp(){ return location.protocol==='file:' && !(BF.Native&&BF.Native.isApp()); },   // plain local file: no way back from Google
   init(){
     if(!this.available()){ this.ready=true; this.emit(); return; }
     try{ firebase.initializeApp(window.BF_FIREBASE); }catch(e){}
@@ -61,9 +61,11 @@ const A = BF.Account = {
     await this.auth.signInWithEmailAndPassword(email,pass);
   },
   async google(){
+    if(BF.Native&&BF.Native.isApp()) return BF.Native.googleSignIn();   // apps: sign in through the real browser
     const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:'select_account'});
     await this.auth.signInWithPopup(p);
   },
+  withGoogleToken(idToken){ return this.auth.signInWithCredential(firebase.auth.GoogleAuthProvider.credential(idToken)); },
   async claimName(name){   // Google users pick their blader name once
     const lower=this.cleanName(name);
     if(!this.validName(lower)) throw new Error('Blader names are 3–16 letters, numbers or _');
