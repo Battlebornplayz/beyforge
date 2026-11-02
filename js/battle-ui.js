@@ -156,7 +156,25 @@ const B = BF.BattleUI = {
     this.arena.setup(m.stadium,...this.F); this.arena.intro();
     $('#bossHud').hidden=!this.raid; if(this.raid){ $('#bossName').textContent=this.F[2].name; }
     this.rules=m.rules||BF.Settings.rulesFor(m.stadium.kind);
-    this.hud(true); this.nextRound();
+    this.mst=this.F.map(()=>({moves:0,statuses:0,clicks:0,rounds:0,fin:{}})); this.mstAll={hits:0,best:0,longest:0,rounds:0};
+    this.hud(true);
+    if(!document.documentElement.classList.contains('reduce-motion')) this.vsSplash(()=>this.nextRound()); else this.nextRound();
+  },
+  portrait(f){ const key=f.name+(f.d.paint&&f.d.paint.blade.color); this._pc=this._pc||{}; if(this._pc[key]) return this._pc[key];
+    const c=document.createElement('canvas'); c.width=c.height=160; const x=c.getContext('2d'), m=BF.mainPart(f.asm).meta, k=66/m.R, P=f.d.paint||{};
+    const col=(P.blade&&P.blade.color)||'#e9edf5', acc=(P.accent&&P.accent.color)||'#2ef2ff';
+    const g=x.createRadialGradient(80,80,6,80,80,90); g.addColorStop(0,'#2a2460'); g.addColorStop(1,'#07060e'); x.fillStyle=g; x.fillRect(0,0,160,160);
+    x.save(); x.translate(80,80); x.rotate(-0.4); x.beginPath(); m.outline.forEach((q,i)=>{ const X=q[0]*k, Y=-q[1]*k; i?x.lineTo(X,Y):x.moveTo(X,Y); }); x.closePath();
+    const bg=x.createLinearGradient(-60,-60,60,60); bg.addColorStop(0,'#fff'); bg.addColorStop(0.35,col); bg.addColorStop(1,'#111'); x.fillStyle=bg; x.shadowColor=acc; x.shadowBlur=18; x.fill(); x.shadowBlur=0;
+    x.lineWidth=3; x.strokeStyle='#000'; x.stroke(); x.beginPath(); x.arc(0,0,14,0,Math.PI*2); x.fillStyle='#07060e'; x.fill(); x.strokeStyle=acc; x.lineWidth=3; x.stroke(); x.restore();
+    return this._pc[key]=c.toDataURL(); },
+  vsSplash(done){
+    const el=$('#vsSplash'), side=(f,i)=>`<div class="vs-side s${i+1}"><img src="${this.portrait(f)}" alt=""><b>${esc(f.name)}</b><span>${(f.els||[]).map(e=>BF.ELEMENTS[e].icon+' '+BF.ELEMENTS[e].label).join(' / ')} · ${esc(f.an.type)}</span></div>`;
+    const left=this.raid?`<div class="vs-team">${side(this.F[0],0)}${side(this.F[1],0)}</div>`:side(this.F[0],0), right=this.raid?side(this.F[2],1):side(this.F[1],1);
+    const st=this.match.stadium, ter=st.terrain&&st.terrain!=='none'?BF.TERRAINS[st.terrain].label:(st.kind==='X'?'Xtreme Stadium':'Burst Stadium');
+    el.innerHTML=`<div class="vs-bg"></div>${left}<div class="vs-mid"><i>VS</i><small>${esc(ter)}${this.match.ranked?' · RANKED':this.raid?' · RAID':''}</small></div>${right}`;
+    el.hidden=false; el.classList.remove('out'); BF.Sfx&&BF.Sfx.ui&&BF.Sfx.ui('open'); setTimeout(()=>BF.Sfx&&BF.Sfx.clash&&BF.Sfx.clash(1800),650);
+    setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ el.hidden=true; this.arena.intro(); done(); },450); },2200);
   },
   nextRound(){
     this.st='launch'; this.launches=[null,null].concat(this.raid?[null]:[]); this.sim=null; this.netSnap=null; this.arena.clearDebris();
@@ -168,6 +186,7 @@ const B = BF.BattleUI = {
   idlePose(){ const R=this.match.stadium.diameter/2; this.netSnap={b:[[0,-R*0.55,0,0,0,1,0,1,0,0],[0,R*0.55,0,0,0,1,0,1,0,0]].concat(this.raid?[[R*0.3,0,0,0,0,1,0,1,0,0]]:[]).map((s,i)=>{ s[2]=this.match.stadium.depth*(R*0.55)**2/R; return s; })}; },
   launchPanel(who){
     const f=this.F[who], col=who===0?'c1':'c2', dual=f.d.spin==='dual';
+    if(!document.documentElement.classList.contains('reduce-motion')) setTimeout(()=>{ const R=this.match.stadium.diameter/2, y=who===0?-R*0.55:R*0.55; this.arena.launchView(who,{x:0,y,z:this.match.stadium.depth*(R*0.55)**2/R}); },80);
     const label=this.mode==='local'?`Player ${who+1}`:this.mode==='cpu'?'Your launch':'Your launch';
     const perks=(this.progOn&&(this.mode!=='local'||who===0)&&BF.Parts)?BF.Parts.blader().filter(k=>['steady','grit','quick','focus'].includes(k)):[];
     const sweet=perks.includes('steady')?0.84:0.9;
@@ -184,7 +203,7 @@ const B = BF.BattleUI = {
         </div>
       </div>
       ${this.movesOn?this.movePicker(who):''}
-      <div class="meter"><i id="meterFill"></i><span class="sweet"></span></div>
+      <div class="meter ripcord"><i id="meterFill"></i><span class="sweet"></span></div>
       <button class="btn primary wide big rev" id="revBtn">Hold to rev — release to launch</button>
       <div class="fine">Release in the bright zone for a full-power launch.</div>`;
     let shot='flat', pos={a:0,r:0.55}; const picks=this.movesOn?this.defaultPicks(who):[];
@@ -200,10 +219,11 @@ const B = BF.BattleUI = {
     let spin='right'; this.panel.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ spin=b.dataset.sp; this.panel.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); });
     const ai=$('#angIn'); ai.oninput=()=>$('#angOut').textContent=(ai.value>0?'+':'')+ai.value+'°';
     const btn=$('#revBtn'), fill=$('#meterFill'); let t0=0, raf=0, power=0;
-    const tick=()=>{ const t=(performance.now()-t0)/1000; const ph=(t/1.3)%2; power=ph<1?ph:2-ph; fill.style.width=(power*100)+'%'; fill.classList.toggle('hot',power>sweet); raf=requestAnimationFrame(tick); };
+    const L=()=>this.arena.beys[who]&&this.arena.beys[who].launcher;
+    const tick=()=>{ const t=(performance.now()-t0)/1000; const ph=(t/1.3)%2; power=ph<1?ph:2-ph; fill.style.width=(power*100)+'%'; if(L()) L().userData.pull=power; fill.classList.toggle('hot',power>sweet); raf=requestAnimationFrame(tick); };
     const start=e=>{ e.preventDefault(); if(t0) return; t0=performance.now(); btn.classList.add('revving'); tick(); BF.Sfx && BF.Sfx.rev(true); };
     const end=e=>{ if(!t0) return; e&&e.preventDefault(); cancelAnimationFrame(raf); BF.Sfx && BF.Sfx.rev(false);
-      const p=Math.max(0.35,power); btn.disabled=true; const P2=p>sweet?1:p; btn.textContent=p>sweet?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
+      const p=Math.max(0.35,power); btn.disabled=true; const P2=p>sweet?1:p; fill.parentNode.classList.add('snap'); if(L()) L().userData.pull=1.6; btn.textContent=p>sweet?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
       this.lockLaunch(who,{power:P2,angle:+ai.value,spin,mode,shot,pos,moves:picks.slice(),perks}); };
     btn.addEventListener('pointerdown',start); btn.addEventListener('pointerup',end); btn.addEventListener('pointerleave',end);
     btn.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') start(e); }); btn.addEventListener('keyup',e=>{ if(e.key===' '||e.key==='Enter') end(e); });
@@ -232,7 +252,7 @@ const B = BF.BattleUI = {
   fight(seed){
     this.st='fight'; document.body.classList.add('infight');
     const isGuest=this.mode==='online'&&BF.Net.role==='guest';
-    this.arena.live=true; this.F.forEach((_,i)=>this.arena.launchFx(i)); this.arena.camFx=null;
+    this.arena.live=true; this.F.forEach((_,i)=>this.arena.launchFx(i)); this.arena.releaseLaunchers();
     this.showMoveBar(); this._usedSeen=null;
     if(isGuest){ this.sim=null; return; }
     this.sim=new BF.Sim(this.F[0],this.F[1],this.match.stadium,seed,this.raid?{extra:this.F[2],teams:[0,0,1]}:undefined);
@@ -243,6 +263,11 @@ const B = BF.BattleUI = {
   },
   fx(e){
     const ar=this.arena;
+    if(this.mst){ const M=this.mst, n=this.F.length, foe=i=>this.raid?(i===2?0:2):1-i;
+      if(e.k==='hit'){ this.mstAll.hits++; this.mstAll.best=Math.max(this.mstAll.best,e.s); }
+      if(e.k==='move'&&M[e.i]) M[e.i].moves++;
+      if(e.k==='click'&&M[foe(e.i)]) M[foe(e.i)].clicks++;
+      if(e.k==='status'&&e.s!=='armor'&&M[foe(e.i)]) M[foe(e.i)].statuses++; }
     if(e.k==='hit' && e.s>1500){ this.hitStop=0.07; ar.shake=Math.min(6,(ar.shake||0)+2.5); this.flash('rgba(255,255,255,.35)'); }
     if(e.k==='gust'){ this.flash('rgba(255,230,120,.25)'); ar.lightning&&ar.lightning(); BF.Sfx&&BF.Sfx.dash(); this.pop(null,'GUST!','#ffd21f'); }
     if(e.k==='nova'){ ar.moveFx&&ar.moveFx(e.i,0xffffff); this.flash('rgba(255,255,255,.5)'); ar.shake=Math.min(8,(ar.shake||0)+4); }
@@ -262,6 +287,7 @@ const B = BF.BattleUI = {
     // moves picked this round go on cooldown for the next one
     if(this.launches) this.lastMoves=[0,1,2].map(i=>(this.launches[i]&&this.launches[i].moves)||[]);
     if(BF.Missions){ BF.Missions.bump('round'); if(res.how==='burst'&&this.mode!=='local'&&res.winner===(this.raid?0:this.me)) BF.Missions.bump('burstwin'); }
+    if(this.mst&&!fromNet){ const wi=this.raid?(res.winner===0?0:2):res.winner; if(this.mst[wi]){ this.mst[wi].rounds++; this.mst[wi].fin[res.how]=(this.mst[wi].fin[res.how]||0)+1; } this.mstAll.rounds++; this.mstAll.longest=Math.max(this.mstAll.longest,res.t||0); }
     const pts=this.rules.pts[res.how]||1;
     if(!fromNet){ this.score[res.winner]+=pts; if(this.mode==='online') BF.Net.send({t:'round',res,score:this.score}); }
     this.arena.live=false;
@@ -289,7 +315,7 @@ const B = BF.BattleUI = {
     this.panel.className='bpanel result';
     const title=this.raid?(win===0?'Raid cleared!':esc(this.F[2].name)+' wins'):esc(this.F[win].name)+' wins';
     this.panel.innerHTML=`<div class="res-title ${win===0?'c1':'c2'}">${title}</div>
-      <div class="res-score"><b class="c1">${this.score[0]}</b><span>–</span><b class="c2">${this.score[1]}</b></div>${line}<div class="rewards"></div><div class="advres"></div>
+      <div class="res-score"><b class="c1">${this.score[0]}</b><span>–</span><b class="c2">${this.score[1]}</b></div>${line}${this.statsHtml()}<div class="rewards"></div><div class="advres"></div>
       <div class="res-acts">${this.mode==='online'&&BF.Net.role==='guest'?'<button class="btn primary" id="rematch">Ask for rematch</button>':'<button class="btn primary" id="rematch">Rematch</button>'}<button class="btn" id="backSetup">${adv&&!this.raid?'Back to Adventure':'Change Beys'}</button></div>`;
     $('#rematch').onclick=()=>{ if(this.mode==='online'){ if(BF.Net.role==='host') this.hostStart(); else { BF.Net.send({t:'rematch'}); $('#rematch').textContent='Asked…'; } } else this.startMatch(this.match); };
     $('#backSetup').onclick=()=>{ if(adv&&!this.raid) this.mode='adventure'; this.renderSetup(); };
@@ -348,17 +374,24 @@ const B = BF.BattleUI = {
     snap.b.forEach(s=>{ const bits=s[11]||0; if(!bits||!s[7]) return; (BF.STATUS_KEYS||[]).forEach((k,j)=>{ if(!(bits&(1<<j))||Math.random()>0.35) return;
       const c=parseInt(BF.STATUS[k].color.slice(1),16), a=Math.random()*Math.PI*2;
       ar.particle(s[0]+Math.cos(a)*14,s[1]+Math.sin(a)*14,s[2]+8,Math.cos(a)*20,Math.sin(a)*20,k==='burn'?70:k==='freeze'?-10:40,0.5,c,k==='shock'?0.9:1.2,k==='burn'?-60:120); }); }); },
+  statsHtml(){ if(!this.mst) return ''; const cols=this.raid?[0,1,2]:[0,1], M=this.mst, A=this.mstAll, f=i=>this.F[i];
+    const fin=m=>Object.entries(m.fin).map(([k,v])=>`${v}× ${k}`).join(', ')||'—';
+    const row=(label,fn,best)=>{ const vals=cols.map(i=>fn(M[i])); const mx=Math.max(...vals.map(v=>typeof v==='number'?v:-1));
+      return `<tr><td>${label}</td>${vals.map(v=>`<td class="${best&&typeof v==='number'&&v===mx&&mx>0?'top':''}">${v}</td>`).join('')}</tr>`; };
+    return `<div class="mstats"><table><tr><th></th>${cols.map(i=>`<th class="c${Math.min(i,1)+1}">${esc(f(i).name)}</th>`).join('')}</tr>
+      ${row('Rounds won',m=>m.rounds,1)}${row('Finishes',m=>fin(m))}${row('Moves fired',m=>m.moves,1)}${row('Statuses inflicted',m=>m.statuses,1)}${row('Burst clicks dealt',m=>m.clicks,1)}</table>
+      <div class="mst-all"><span><b>${A.hits}</b>clashes</span><span><b>${Math.round(A.best)}</b>biggest hit</span><span><b>${A.longest.toFixed(1)}s</b>longest round</span><span><b>${A.rounds}</b>rounds</span></div></div>`; },
   flash(c){ const f=$('#bflash'); if(!f||(BF.Settings&&!BF.Settings.get('shake'))) return; f.style.background=c; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); },
   // ---------- HUD ----------
-  hud(on){ $('#bhud').hidden=!on; if(!on) this.hideMoveBar(); if(on){ [0,1].forEach(i=>{ const els=this.movesOn?(this.F[i].els||[]):[]; $('#n'+(i+1)).innerHTML=esc(this.F[i].name)+els.map(e=>`<span class="elb" style="--c:${BF.ELEMENTS[e].color}" title="${BF.ELEMENTS[e].label}">${BF.ELEMENTS[e].icon}</span>`).join(''); }); } },
+  hud(on){ $('#bhud').hidden=!on; if(!on) this.hideMoveBar(); if(on){ [0,1].forEach(i=>{ $('#pt'+(i+1)).innerHTML=`<img src="${this.portrait(this.F[i])}" alt="">`; const els=this.movesOn?(this.F[i].els||[]):[]; $('#n'+(i+1)).innerHTML=esc(this.F[i].name)+els.map(e=>`<span class="elb" style="--c:${BF.ELEMENTS[e].color}" title="${BF.ELEMENTS[e].label}">${BF.ELEMENTS[e].icon}</span>`).join(''); }); } },
   updateHud(snap){
     if(!this.F) return;
     [0,1].forEach(i=>{
       const pips=$('#pips'+(i+1)); const t=this.rules.target;
       pips.innerHTML=Array.from({length:t},(_,k)=>`<i class="${k<this.score[i]?'on':''}"></i>`).join('');
       const stEl=$('#st'+(i+1)); if(stEl){ const bits=snap?snap.b[i][11]||0:0; if(stEl._bits!==bits){ stEl._bits=bits; stEl.innerHTML=(BF.STATUS_KEYS||[]).filter((k,j)=>bits&(1<<j)).map(k=>`<i style="--c:${BF.STATUS[k].color}">${BF.STATUS[k].label}</i>`).join(''); } }
-      if(snap){ const s=snap.b[i]; $('#s'+(i+1)).style.width=Math.max(0,Math.min(100,s[4]/s[5]*100))+'%'; const bm=$('#bm'+(i+1)); bm.style.width=Math.min(100,(s[10]||0)*100)+'%'; bm.parentNode.classList.toggle('hot',(s[10]||0)>0.66); }
-      else { $('#s'+(i+1)).style.width='100%'; $('#bm'+(i+1)).style.width='0%'; }
+      if(snap){ const s=snap.b[i], wv=Math.max(0,Math.min(100,s[4]/s[5]*100))+'%'; $('#s'+(i+1)).style.width=wv; $('#sl'+(i+1)).style.width=wv; const bm=$('#bm'+(i+1)); bm.style.width=Math.min(100,(s[10]||0)*100)+'%'; bm.parentNode.classList.toggle('hot',(s[10]||0)>0.66); }
+      else { $('#s'+(i+1)).style.width='100%'; $('#sl'+(i+1)).style.width='100%'; $('#bm'+(i+1)).style.width='0%'; }
     });
     $('#roundLbl').textContent=this.raid?'RAID':'Round '+this.round;
     if(this.raid){ const s=snap&&snap.b[2]; $('#bossSpin').style.width=(s?Math.max(0,Math.min(100,s[4]/s[5]*100)):100)+'%'; $('#bossBurst').style.width=(s?Math.min(100,(s[10]||0)*100):0)+'%'; }

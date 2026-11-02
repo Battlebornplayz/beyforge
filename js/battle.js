@@ -323,12 +323,29 @@ BF.Arena = class {
     cam.position.set(0,-need*Math.sin(tilt),need*Math.cos(tilt)); const look=new T.Vector3(0,portrait?-R*0.18:0,0); cam.lookAt(look);
     this.camBase={pos:cam.position.clone(), look}; }
   // ---------- cinematic camera ----------
+  // launch close-up: camera eases onto your Bey and a 3D launcher sits on top of it
+  launchView(i,at){ const v=this.beys[i]; if(!v) return; this.clearLaunchers();
+    const p=at?new T.Vector3(at.x,at.y,at.z):v.root.position.clone(); if(at) v.root.position.copy(p); this.camFx={kind:'hold',t:0,dur:0.9,at:new T.Vector3(p.x,p.y,p.z+10),dist:Math.max(175,(v.f.R||22)*8)};
+    const L=this.launcher(i===0?0x2ef2ff:0xff2e88); L.scale.setScalar(0.8); L.rotation.z=Math.PI; L.position.set(0,0,(v.f.asm?v.f.asm.height:24)+5); v.root.add(L); v.launcher=L; }
+  launcher(color){ const g=new T.Group(), dark=new T.MeshStandardMaterial({color:0x15161e,metalness:.2,roughness:.6,envMapIntensity:.2}), acc=new T.MeshStandardMaterial({color,metalness:.6,roughness:.3,emissive:color,emissiveIntensity:.25});
+    const body=new T.Mesh(new T.CylinderGeometry(15,17,9,32),dark); body.rotation.x=Math.PI/2; body.position.z=4.5; g.add(body);
+    const ring=new T.Mesh(new T.TorusGeometry(16,1.4,10,40),acc); ring.position.z=8.8; g.add(ring);
+    const slot=new T.Mesh(new T.BoxGeometry(34,6,5),dark); slot.position.set(17,0,6); g.add(slot);
+    const cordEnd=new T.Mesh(new T.BoxGeometry(5,9,6),acc); cordEnd.position.set(36,0,6); g.add(cordEnd);
+    const grip=new T.Mesh(new T.BoxGeometry(8,6,24),dark); grip.position.set(0,20,18); grip.rotation.x=0.45; g.add(grip);
+    const prongs=new T.Group(); for(let k=0;k<3;k++){ const pr=new T.Mesh(new T.BoxGeometry(3,3,6),acc); const a=k*Math.PI*2/3; pr.position.set(Math.cos(a)*11,Math.sin(a)*11,-1); prongs.add(pr); } g.add(prongs);
+    g.userData.cord=cordEnd; return g; }
+  releaseLaunchers(){ (this.beys||[]).forEach(v=>{ if(v.launcher){ v.launcher.userData.fly=0.01; } }); const pose=this.camPose(0); if(pose) this.camFx={kind:'back',t:0,dur:0.6,fromPos:pose.pos.clone(),fromLook:pose.look.clone()}; }
+  clearLaunchers(){ (this.beys||[]).forEach(v=>{ if(v.launcher){ v.root.remove(v.launcher); v.launcher=null; } }); }
   intro(){ if(!this.camBase||document.documentElement.classList.contains('reduce-motion')) return; const R=this.R||190; this.camFx={kind:'intro',t:0,dur:1.9,from:new T.Vector3(R*1.6,-R*0.9,R*0.55)}; }
   focus(x,y,z,dur){ this.camFx={kind:'focus',t:0,dur:dur||1.6,at:new T.Vector3(x,y,z||0)}; }
   camPose(dt){
     const B=this.camBase; if(!B) return null; const f=this.camFx; if(!f) return {pos:B.pos,look:B.look};
     f.t+=dt; const u=Math.min(1,f.t/f.dur), e=u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
     let pos, look;
+    if(f.kind==='hold'){ const close=f.at.clone().add(new T.Vector3(0,-1,0.85).normalize().multiplyScalar(f.dist||180));
+      const p=B.pos.clone().lerp(close,e), l=B.look.clone().lerp(f.at,e); if(u>=1){ f.t=f.dur; } return {pos:p,look:l}; }
+    if(f.kind==='back'){ return {pos:f.fromPos.clone().lerp(B.pos,e),look:f.fromLook.clone().lerp(B.look,e)}; }
     if(f.kind==='intro'){ const a=(1-e)*1.2; const p0=f.from.clone().applyAxisAngle(new T.Vector3(0,0,1),a); pos=p0.lerp(B.pos,e); look=B.look; }
     else { const k=Math.sin(u*Math.PI); const toward=B.pos.clone().lerp(f.at.clone().add(new T.Vector3(0,-60,90)),0.62*Math.min(1,k*1.6)); pos=toward; look=B.look.clone().lerp(f.at,Math.min(1,k*1.6)); }
     if(u>=1) this.camFx=null;
@@ -420,6 +437,8 @@ BF.Arena = class {
       const wob=tilt*0.5, ph=ang*0.18; v.tilt.rotation.set(Math.sin(ph)*wob,Math.cos(ph)*wob,0);
       v.spin.rotation.z=ang; v.ring.material.opacity=alive?(dash?1:0.55):0.15; v.ring.scale.setScalar(dash?1.25:1);
     }); }
+    (this.beys||[]).forEach(v=>{ const L=v.launcher; if(!L) return; if(L.userData.fly){ L.userData.fly+=dt; L.position.z+=dt*260; L.rotation.z+=dt*4; L.traverse(o=>{ if(o.material){ o.material.transparent=true; o.material.opacity=Math.max(0,1-L.userData.fly*2); } }); if(L.userData.fly>0.6){ v.root.remove(L); v.launcher=null; } }
+      else if(L.userData.cord&&L.userData.pull!=null) L.userData.cord.position.x=36+L.userData.pull*40; });
     const anims=this.stadiumMesh&&this.stadiumMesh.userData.anims; if(anims){ const tt=snap&&snap.t!=null&&this.live?snap.t:performance.now()/1000; anims.forEach(f=>f(tt)); }
     for(let i=this.fx.length-1;i>=0;i--){ const m=this.fx[i], u=m.userData; u.life-=dt; const f=Math.max(0,u.life/u.max);
       if(u.ring){ m.scale.setScalar(8+(1-f)*u.grow); } m.material.opacity=(u.fade?0.25:1)*f;

@@ -1,5 +1,5 @@
 /* BeyForge offline cache. Bump VERSION on every release so phones pick up the update. */
-const VERSION = 'beyforge-v6-1';
+const VERSION = 'beyforge-v6-2';
 const CORE = ['./','index.html','manifest.webmanifest','css/beyforge.css',
   'lib/three.min.js','lib/OrbitControls.js','lib/jszip.min.js','lib/font.js',
   'lib/peerjs.min.js','js/data.js','js/data4.js','js/moves.js','js/terrain.js','js/settings.js','js/ui6.js','css/theme6.css','js/paint.js','js/ui4.js','js/firebase-config.js','js/account.js','js/social.js','js/admin.js','js/ranked.js','js/native.js','js/shop.js','js/cards.js','js/gallery.js','js/parts.js','js/packs.js','js/parts-ui.js','js/adventure.js','js/home.js','js/tour.js','js/hd.js','lib/post.js','lib/firebase-app-compat.js','lib/firebase-auth-compat.js','lib/firebase-firestore-compat.js','js/battle.js','js/net.js','js/sfx.js','js/battle-ui.js','js/geometry.js','js/viewer.js','js/physics.js','js/export.js','js/storage.js','js/ui.js','js/app.js',

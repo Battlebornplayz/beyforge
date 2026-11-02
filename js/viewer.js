@@ -79,6 +79,20 @@ BF.Viewer = class {
 
     const glow=new T.Mesh(new T.RingGeometry(34,35.2,160), new T.MeshStandardMaterial({color:0x000000,emissive:0x2ef2ff,emissiveIntensity:2,transparent:true,opacity:0.6})); glow.position.z=0.1; floor.add(glow);
     this.glow=glow; s.add(floor);
+    // v6.2: glowing display pedestal the Bey stands on
+    floor.position.z=-7.5;
+    const ped=this.ped=new T.Group(), acc=()=>new T.Color(getComputedStyle(document.documentElement).getPropertyValue('--accent2').trim()||'#2ef2ff');
+    const body=new T.Mesh(new T.CylinderGeometry(46,52,7.5,96),new T.MeshStandardMaterial({color:0x020108,metalness:.2,roughness:.6,envMapIntensity:.1})); body.rotation.x=Math.PI/2; body.position.z=-3.75; body.receiveShadow=true; body.castShadow=true; ped.add(body);
+    const deck=new T.Mesh(new T.CircleGeometry(46,96),new T.MeshStandardMaterial({color:0x010006,metalness:0,roughness:.9,envMapIntensity:0})); deck.position.z=0.02; deck.receiveShadow=true; ped.add(deck);
+    const neonM=()=>new T.MeshStandardMaterial({color:0x000000,emissive:acc(),emissiveIntensity:2.2});
+    const rimTop=new T.Mesh(new T.TorusGeometry(46,0.9,10,160),neonM()); rimTop.position.z=0.1; ped.add(rimTop);
+    const rimLow=new T.Mesh(new T.TorusGeometry(52,0.7,10,160),neonM()); rimLow.position.z=-7.4; ped.add(rimLow);
+    const runes=new T.Group(); for(let k=0;k<8;k++){ const a=k*Math.PI/4; const seg=new T.Mesh(new T.RingGeometry(38,40,24,1,a,Math.PI/6),new T.MeshBasicMaterial({color:acc(),transparent:true,opacity:.35,blending:T.AdditiveBlending,depthWrite:false})); runes.add(seg); } runes.position.z=0.08; ped.add(runes);
+    const beam=new T.Mesh(new T.CylinderGeometry(30,46,150,64,1,true),new T.MeshBasicMaterial({color:acc(),transparent:true,opacity:.045,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false})); beam.rotation.x=Math.PI/2; beam.position.z=75; ped.add(beam);
+    floor.remove(glow); glow.position.z=0.06; glow.scale.setScalar(0.82); ped.add(glow);
+    this.pedParts={rimTop,rimLow,runes,beam}; s.add(ped);
+    this.pedColor=()=>{ const c=acc(); [rimTop,rimLow].forEach(m=>m.material.emissive.copy(c)); runes.children.forEach(m=>m.material.color.copy(c)); beam.material.color.copy(c); glow.material.emissive&&glow.material.emissive.copy(c); };
+    BF.Settings&&BF.Settings.on(k=>{ if(['accent','theme','*'].includes(k)) setTimeout(()=>this.pedColor(),30); });
     // rig
     this.rig=new T.Group(); s.add(this.rig);
     this.clip=new T.Plane(new T.Vector3(0,-1,0),0);
@@ -135,7 +149,7 @@ BF.Viewer = class {
   setStadium(on,kind,diam){
     this.state.stadium=on;
     if(this.stadium){ this.scene.remove(this.stadium); this.stadium.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); }); this.stadium=null; }
-    this.floor.visible=!on;
+    this.floor.visible=!on; if(this.ped) this.ped.visible=!on;
     if(on){ this.stadium=BF.buildStadium(kind, diam||(kind==='X'?380:360)); this.scene.add(this.stadium); }
     this.frame(on);
   }
@@ -159,6 +173,7 @@ BF.Viewer = class {
     if(st.spin && !st.section && st.explodeT<0.05){ this.rig.rotation.x=Math.sin(t*1.7)*0.012; this.rig.rotation.y=Math.cos(t*1.7)*0.012; } else { this.rig.rotation.x=0; this.rig.rotation.y=0; }
     if(st.stadium && this.stadium){ this.rig.position.z=0; }
     this.glow.material.opacity=0.45+0.2*Math.sin(t*2);
+    if(this.pedParts){ this.pedParts.runes.rotation.z=-t*0.25; this.pedParts.beam.material.opacity=0.035+0.02*Math.sin(t*1.5); }
     this.controls.update();
     BF.HD.render(this,this.renderer,this.scene,this.camera);
   }
