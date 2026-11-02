@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07060e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>BeyForge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/beyforge.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span>BEY<b>FORGE</b></span><em>V2</em></div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="forge" class="on">Forge</button>
+    <button data-tab="library">Library</button>
+  </nav>
+  <div class="spacer"></div>
+  <button id="folderBtn" class="folder-btn"><i></i>Connect O:\BeyForge</button>
+</header>
+
+<main id="view-forge" class="view forge">
+  <aside class="panel left" id="controls" aria-label="Design controls"></aside>
+  <section class="stage">
+    <div id="viewport"></div>
+    <div class="hud"><div class="hud-name" id="hudName">—</div><div class="hud-sub">rebuilt in <span id="buildTime">—</span> · drag to orbit · scroll to zoom</div></div>
+    <div class="toolbar" role="toolbar" aria-label="View">
+      <button data-tool="spin" class="on" title="Spin (Space)"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg>Spin</button>
+      <button data-tool="explode" title="Exploded view (E)"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="4" rx="1"/><rect x="7" y="10" width="10" height="4" rx="1"/><rect x="9" y="17" width="6" height="4" rx="1"/></svg>Explode</button>
+      <button data-tool="section" title="Cut in half"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 2v20"/></svg>Section</button>
+      <button data-tool="stadium" title="Show in stadium"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="14" rx="10" ry="5"/><path d="M2 14V10M22 14V10"/><ellipse cx="12" cy="10" rx="10" ry="5"/></svg>Stadium</button>
+      <span class="sep"></span>
+      <button data-tool="top" title="Top view"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/></svg>Top</button>
+      <button data-tool="reset" title="Reset camera"><svg viewBox="0 0 24 24"><path d="M3 12h4M17 12h4M12 3v4M12 17v4"/><circle cx="12" cy="12" r="5"/></svg>Reset</button>
+    </div>
+    <div class="keys"><kbd>Ctrl Z</kbd> undo · <kbd>Ctrl S</kbd> save<br><kbd>Space</kbd> spin · <kbd>E</kbd> explode</div>
+  </section>
+  <aside class="panel right" id="sheet" aria-label="Spec sheet"></aside>
+</main>
+
+<main id="view-library" class="view library" hidden>
+  <div class="lib-head"><h2>Library</h2><span id="libWhere"></span></div>
+  <div class="libgrid" id="libGrid"></div>
+</main>
+
+<div class="modal" id="promptModal" hidden>
+  <div class="modal-card" role="dialog" aria-labelledby="promptTitle">
+    <div class="modal-head"><h3 id="promptTitle">Claude modeling prompt</h3><span id="promptLen" class="mono dim"></span></div>
+    <p class="dim">Paste this into a Claude chat. It has every dimension and fit from your design, so Claude can write a clean parametric OpenSCAD model.</p>
+    <textarea id="promptText" readonly spellcheck="false"></textarea>
+    <div class="modal-acts"><button class="btn primary" id="copyPrompt">Copy prompt</button><button class="btn" id="savePrompt">Save as .txt</button><button class="btn ghost" id="closePrompt">Close</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="lib/jszip.min.js"></script>
+<script src="lib/font.js"></script>
+<script src="js/data.js"></script>
+<script src="js/geometry.js"></script>
+<script src="js/viewer.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/export.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+<script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>
