@@ -195,12 +195,12 @@ const P = BF.Parts = {
   // ----- rewards after a match with a Battle Bey -----
   async reward(d,{won,rounds,mode,cpuLevel}){
     if(!d||!d.prog||!d.prog.copyIds) return null;
-    const bl=this.blader(), xpGain=Math.round((rounds*15+(won?40:10))*(mode==='online'?1.5:1)*(bl.includes('trainer')?1.25:1));
+    const bl=this.blader(), xpGain=Math.round((rounds*15+(won?40:10))*(mode==='online'?1.5:1)*(bl.includes('trainer')?1.25:1)*(BF.Live?BF.Live.mult('xp'):1));
     const ups=[];
     for(const id of d.prog.copyIds){ const p=this.get(id); if(!p) continue; const before=this.level(p), xp=(p.xp||0)+xpGain; await this.patch(id,{xp}).catch(()=>{}); const after=BF.partLevel(xp).lv; if(after>before) ups.push(`${p.name} → Lv ${after}`); }
     let drop=null;
     if(won){ const chance=0.22+({hard:0.08,expert:0.15}[cpuLevel]||0)+(mode==='online'?0.12:0)+(bl.includes('scout')?0.1:0);
-      if(Math.random()<chance){ const slot=SLOTS[Math.floor(Math.random()*3)]; drop=await this.create(slot,this.randomDesign(),roll(ODDS.drop),'drop'); } }
+      if(Math.random()<chance*(BF.Live?BF.Live.mult('drops'):1)){ const slot=SLOTS[Math.floor(Math.random()*3)]; drop=await this.create(slot,this.randomDesign(),roll(ODDS.drop),'drop'); } }
     return {xpGain,ups,drop};
   }
 };

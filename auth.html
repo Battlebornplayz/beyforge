@@ -41,7 +41,7 @@
       const res=await auth.signInWithPopup(p);
       const tok=res.credential&&res.credential.idToken;
       if(!tok) throw new Error('Google didn’t return a sign-in token. Try again.');
-      const link='beyforge://auth?id_token='+encodeURIComponent(tok);
+      const link=(new URLSearchParams(location.search).get('app')==='studio'?'beyforgestudio':'beyforge')+'://auth?id_token='+encodeURIComponent(tok);
       document.getElementById('back').href=link;
       document.getElementById('gBtn').hidden=true; document.getElementById('step1').hidden=true; document.getElementById('step2').hidden=false;
       location.href=link;

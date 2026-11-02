@@ -97,7 +97,7 @@ const Adv = BF.Adventure = {
   // ----- results & rewards -----
   async done(adv,won,UI){
     const d=this.data(), a=A(), signed=a&&a.profile, FV=window.firebase&&firebase.firestore&&firebase.firestore.FieldValue, lines=[];
-    const coins=async n=>{ if(signed&&FV){ await a.update({coins:FV.increment(n)}).catch(()=>{}); lines.push(`<div>+${n} coins</div>`); } };
+    const coins=async n=>{ n=Math.round(n*(BF.Live?BF.Live.mult('coins'):1)); if(signed&&FV){ await a.update({coins:FV.increment(n)}).catch(()=>{}); lines.push(`<div>+${n} coins</div>`); } };
     const partLine=p=>`<div class="dropline" style="--c:${BF.RARITY[p.rarity].color}">🎁 ${p.shiny?'✨ Shiny ':''}${esc(BF.RARITY[p.rarity].label)} ${esc(p.name)}</div>`;
     if(!won){ return adv.kind==='tower'?'<div class="dim">The tower waits. Train up and try again.</div>':''; }
     if(adv.kind==='tower'){ const n=adv.id; if(n>d.tower){ d.tower=n; await this.save(d); lines.push(`<div class="lvup">🗼 Floor ${n} cleared!</div>`); await coins(30+10*n);

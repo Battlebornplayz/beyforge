@@ -6,7 +6,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const A=()=>BF.Account, today=()=>new Date().toISOString().slice(0,10);
 const yesterday=()=>new Date(Date.now()-86400000).toISOString().slice(0,10);
 const FV=()=>window.firebase&&firebase.firestore&&firebase.firestore.FieldValue;
-async function coins(n){ const a=A(); if(a&&a.profile&&FV()) await a.update({coins:FV().increment(n)}); }
+async function coins(n){ n=Math.round(n*(BF.Live?BF.Live.mult('coins'):1)); const a=A(); if(a&&a.profile&&FV()) await a.update({coins:FV().increment(n)}); }
 
 // ---------- player card cosmetics ----------
 BF.BANNERS={stadium:{label:'Stadium',price:0},neon:{label:'Neon Grid',price:0},xrail:{label:'X-Rail',price:200},flames:{label:'Inferno',price:300},storm:{label:'Storm',price:300},

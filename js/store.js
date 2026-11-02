@@ -50,6 +50,8 @@ const S = BF.Store6 = {
     if(t==='p'){ const p=BF.Packs.get(a); if(!p||p.enabled===false) return null; return {id,type:'pack',pack:p,name:p.name,sub:BF.Packs.oddsText(p),coins:this.adjust(id,BF.Packs.price(p)),gems:p.gems||Math.ceil(p.price/GEM_RATE),giftable:true}; }
     if(t==='o'){ const d=BF.randomDesign(+a), part={slot:b,data:BF.Parts.extract(d,b)}; const pr=OFFER_PRICE[c]||OFFER_PRICE.rare;
       return {id,type:'part',slot:b,rarity:c,design:d,name:BF.Parts.nameOf(b,part.data),sub:`${BF.RARITY[c].label} ${BF.PART_LABEL[b]} · ${BF.ELEMENTS[BF.partElements(d)[b]].icon} ${BF.ELEMENTS[BF.partElements(d)[b]].label}`,coins:this.adjust(id,pr.c),gems:pr.g,part}; }
+    if(t==='l'){ const lp=BF.Live&&BF.Live.parts.find(x=>x.id===a); if(!lp||!(lp.shopPrice>0)) return null; const d=BF.normalize(BF.clone(lp.design)), el=BF.ELEMENTS[BF.partElements(d)[lp.slot]];
+      return {id,type:'part',slot:lp.slot,rarity:lp.rarity,design:d,live:lp,name:lp.name,sub:`${BF.RARITY[lp.rarity].label} ${BF.PART_LABEL[lp.slot]}${el?` · ${el.icon} ${el.label}`:''}`,coins:this.adjust(id,lp.shopPrice),gems:lp.shopGems||Math.ceil(lp.shopPrice/GEM_RATE),part:{slot:lp.slot,data:BF.Parts.extract(d,lp.slot)}}; }
     if(t==='b'){ const B=BUNDLES[a]; if(!B) return null; const its=B.items.map(x=>this.item(x)).filter(Boolean), full=its.reduce((s,x)=>s+(x.owned?0:x.coins),0);
       const coins=this.adjust(id,Math.round(full*0.7/10)*10); return {id,type:'bundle',name:B.name,sub:B.desc,bundle:B,items:its,full,coins,gems:Math.ceil(coins/GEM_RATE),owned:its.every(x=>x.type!=='cosmetic'||x.owned)&&!its.some(x=>x.type==='pack'),giftable:false}; }
     return null;
@@ -74,7 +76,7 @@ const S = BF.Store6 = {
   async grant(it,src){ const a=A(); const out=[];
     if(it.type==='cosmetic') await a.update({unlocks:FV().arrayUnion(it.cat+':'+it.k)});
     if(it.type==='pack') out.push(...await BF.Packs.open(it.pack.id,src||'shop'));
-    if(it.type==='part') out.push(await BF.Parts.create(it.slot,it.design,it.rarity,src||'shop'));
+    if(it.type==='part') out.push(await BF.Parts.create(it.slot,it.design,it.rarity,src||'shop',it.live?{name:it.live.name,liveId:it.live.id}:undefined));
     if(it.type==='bundle'){ const cos=it.items.filter(x=>x.type==='cosmetic'&&!x.owned).map(x=>x.cat+':'+x.k); if(cos.length) await a.update({unlocks:FV().arrayUnion(...cos)});
       for(const x of it.items.filter(x=>x.type==='pack')) out.push(...await BF.Packs.open(x.pack.id,'bundle')); }
     return out; },
@@ -136,7 +138,7 @@ const S = BF.Store6 = {
         <div class="shead"><h3>Today’s deals</h3><span class="dim">new items in ${this.untilMidnight()}</span></div><div class="sgrid">${daily.map(x=>this.card(x,'DAILY')).join('')}</div>`; }
     if(this.tab==='daily') grid=`<div class="shead"><h3>Daily rotation</h3><span class="dim">refreshes in ${this.untilMidnight()}</span></div><div class="sgrid">${daily.map(x=>this.card(x,'DAILY')).join('')}</div>`;
     if(this.tab==='packs') grid=`<div class="sgrid">${BF.Packs.list().map(pk=>this.card(this.item('p:'+pk.id))).join('')}</div>`;
-    if(this.tab==='parts') grid=`<div class="shead"><h3>Part offers</h3><span class="dim">specific parts, rolled IVs on purchase · refresh daily</span></div><div class="sgrid">${daily.concat(feat).filter(x=>x.type==='part').map(x=>this.card(x)).join('')}</div>`;
+    if(this.tab==='parts') grid=`<div class="shead"><h3>Part offers</h3><span class="dim">specific parts, rolled IVs on purchase · refresh daily</span></div><div class="sgrid">${daily.concat(feat).filter(x=>x.type==='part').concat(((BF.Live&&BF.Live.parts)||[]).filter(p=>p.shopPrice>0).map(p=>this.item('l:'+p.id)).filter(Boolean)).map(x=>this.card(x,x.live?'NEW':'')).join('')}</div>`;
     if(this.tab==='bundles') grid=`<div class="sgrid">${Object.keys(BUNDLES).map(k=>this.card(this.item('b:'+k))).join('')}</div>`;
     if(this.tab==='cosmetics') grid=Object.entries(BF.Shop.CATS).map(([cat,name])=>`<div class="shead"><h3>${esc(name)}</h3></div><div class="sgrid">${Object.keys(BF.Shop.P[cat]).filter(k=>BF.Shop.base(cat,k)>0).map(k=>this.card(this.item(`c:${cat}:${k}`))).join('')}</div>`).join('');
     root.innerHTML=`${sl?`<div class="salebar">🔥 ${esc(sl.label||'Sale')} — ${sl.pct}% off everything${sl.ends?` · ends ${new Date(sl.ends).toLocaleDateString()}`:''}</div>`:''}

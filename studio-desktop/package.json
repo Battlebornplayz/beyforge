@@ -1,0 +1,17 @@
+{
+  "name": "beyforge-studio",
+  "productName": "BeyForge Studio",
+  "version": "1.0.0",
+  "description": "Owner dashboard for BeyForge",
+  "author": "Battlebornplayz",
+  "main": "main.js",
+  "devDependencies": { "electron": "31.7.7", "electron-builder": "24.13.3" },
+  "build": {
+    "appId": "com.battlebornplayz.beyforge.studio",
+    "productName": "BeyForge Studio",
+    "files": ["main.js", "preload.js", "app/**/*", "package.json"],
+    "win": { "target": "nsis", "icon": "icon.ico", "artifactName": "BeyForge-Studio-Setup.exe" },
+    "nsis": { "oneClick": true, "perMachine": false, "createDesktopShortcut": "always", "shortcutName": "BeyForge Studio" },
+    "protocols": [{ "name": "BeyForge Studio", "schemes": ["beyforgestudio"] }]
+  }
+}

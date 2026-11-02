@@ -29,9 +29,9 @@ const U = BF.UI6 = {
   apply(){
     const S=BF.Settings, v=S.v;
     let theme=v.theme; if(THEMES[theme]&&THEMES[theme].shop&&BF.Shop&&!BF.Shop.has('theme',theme)) theme='hybrid';
-    root.dataset.theme=theme;
+    const T0=THEMES[theme]; root.dataset.theme=(T0&&T0.base)||theme;
     const TP={hybrid:['#ffe600','#2ef2ff'],xtreme:['#ffe600','#ffffff'],neon:['#2ef2ff','#ff2e88'],metal:['#ff3b4f','#c8ced8'],anime:['#ff3b30','#ffe14d'],burst:['#ff9500','#7fd3ff']};
-    let [a,b]=v.accent==='hybrid'?(TP[theme]||TP.hybrid):(ACCENTS[v.accent]||ACCENTS.hybrid);
+    let [a,b]=v.accent==='hybrid'?(TP[theme]||(T0&&T0.colors)||TP.hybrid):(ACCENTS[v.accent]||ACCENTS.hybrid);
     if(v.accent==='bey'&&BF.App&&BF.App.d){ const p=BF.App.d.paint||{}; a=(p.blade&&p.blade.color)||'#ffe600'; b=(p.accent&&p.accent.color)||'#2ef2ff'; }
     root.style.setProperty('--accent',a); root.style.setProperty('--accent2',b);
     root.dataset.text=v.textSize||'m'; root.dataset.density=v.density||'balanced';

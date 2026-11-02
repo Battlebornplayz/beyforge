@@ -1,0 +1,46 @@
+name: Build BeyForge Studio
+
+on:
+  push:
+    branches: [main]
+    paths: ['studio-desktop/**', '.github/workflows/studio.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: studio
+  cancel-in-progress: true
+
+env:
+  VERSION: 1.0.${{ github.run_number }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - name: Stage Studio (offline fallback)
+        shell: bash
+        run: |
+          mkdir -p studio-desktop/app
+          cp -r studio js lib icons auth.html studio-desktop/app/
+      - name: Build BeyForge-Studio-Setup.exe
+        working-directory: studio-desktop
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          npx electron-builder --win nsis --publish never
+      - name: Publish to the rolling "studio" release (never marked latest, so game updates are unaffected)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view studio >/dev/null 2>&1 || gh release create studio --prerelease --latest=false --title "BeyForge Studio $VERSION" --notes "Owner dashboard for BeyForge. Download BeyForge-Studio-Setup.exe below."
+          gh release upload studio studio-desktop/dist/BeyForge-Studio-Setup.exe --clobber
+          gh release edit studio --title "BeyForge Studio $VERSION" --prerelease --latest=false

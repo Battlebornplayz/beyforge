@@ -18,7 +18,8 @@ service cloud.firestore {
     }
     function can(p) { return isOwner() || perms().get(p, false) == true; }
     // fields only staff may change on a profile
-    function staffFields() { return ['role', 'banned', 'isOwnerFlag']; }
+    function staffFields() { return ['role', 'banned', 'isOwnerFlag', 'muted', 'mutedUntil', 'shadowBanned', 'flags', 'warnings']; }
+    function isStaff() { return isOwner() || can('studio') || can('grant') || can('moderate'); }
     function notBanned() { return !exists(/databases/$(database)/documents/users/$(me())) || profile().get('banned', false) != true; }
 
     // ---- ranks / roles: everyone can read, only owner or "manageRoles" staff can edit ----
@@ -41,12 +42,12 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny(staffFields());
       allow update: if signedIn() && (
           (uid == me() && notBanned() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(staffFields()))
-          || can('grant') );
+          || can('grant') || can('moderate') );
       allow delete: if uid == me() || isOwner();
 
       // saved Beys: private unless marked public
       match /beys/{beyId} {
-        allow read: if signedIn() && (uid == me() || resource.data.get('public', false) == true || can('moderate'));
+        allow read: if signedIn() && (uid == me() || resource.data.get('public', false) == true || can('moderate') || can('viewPlayers'));
         allow write: if signedIn() && uid == me();
       }
       // owned part copies. IVs (and rarity/shiny/slot) can never be changed by the player —
@@ -58,12 +59,17 @@ service cloud.firestore {
             && iv.sta is int && iv.sta >= 0 && iv.sta <= 31 && iv.brs is int && iv.brs >= 0 && iv.brs <= 31
             && iv.stb is int && iv.stb >= 0 && iv.stb <= 31;
         }
-        allow read: if signedIn() && (uid == me() || can('editIV'));
-        allow create: if signedIn() && uid == me() && notBanned() && ivOk(request.resource.data.iv);
+        allow read: if signedIn() && (uid == me() || can('editIV') || can('viewPlayers'));
+        allow create: if signedIn() && ((uid == me() && notBanned()) || can('grant')) && ivOk(request.resource.data.iv);
         allow update: if signedIn() && (
             (uid == me() && notBanned() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['iv','rarity','shiny','slot','system']))
             || (can('editIV') && ivOk(request.resource.data.iv)) );
-        allow delete: if signedIn() && (uid == me() || can('editIV'));
+        allow delete: if signedIn() && (uid == me() || can('editIV') || can('grant'));
+      }
+      // activity log the Studio reads (packs, purchases, gifts, trades, staff actions)
+      match /log/{lid} {
+        allow read: if signedIn() && (uid == me() || can('viewPlayers'));
+        allow create: if signedIn() && (uid == me() || isStaff());
       }
       // friends list entries
       match /friends/{fid} {
@@ -117,6 +123,35 @@ service cloud.firestore {
     match /config/{doc} {
       allow read: if true;
       allow write: if can('manageGame');
+    }
+
+    // ---- BeyForge Studio content: custom packs, parts, cosmetics... ----
+    // players see live/scheduled items; creators can only save drafts or send for review; publishers can go live
+    match /content/{id} {
+      allow read: if resource.data.status in ['live', 'scheduled'] || can('createContent') || can('publish');
+      allow create, update: if can('publish')
+        || (can('createContent') && request.resource.data.status in ['draft', 'review']
+            && (resource == null || resource.data.status in ['draft', 'review']));
+      allow delete: if can('publish');
+      match /versions/{v} {
+        allow read: if can('createContent') || can('publish');
+        allow create: if can('createContent') || can('publish');
+      }
+    }
+    // ---- audit log: every Studio action, who did it and what it was before ----
+    match /audit/{id} {
+      allow read: if can('viewAudit');
+      allow create: if isStaff() && request.resource.data.by == me();
+      allow delete: if isOwner();
+    }
+    // ---- analytics: players add to daily counters, staff read ----
+    match /stats/{d} {
+      allow read: if can('viewAnalytics');
+      allow create, update: if signedIn();
+    }
+    match /errors/{id} {
+      allow read, delete: if can('viewAnalytics');
+      allow create: if request.resource.data.keys().hasOnly(['msg','stack','ver','shell','ua','uid','ts']) && request.resource.data.msg.size() < 400;
     }
   }
 }

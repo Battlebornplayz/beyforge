@@ -91,8 +91,8 @@ const A = BF.Account = {
   // ---------- progress ----------
   async addMatch(won,how,online,ranked){
     if(!this.profile) return;
-    const FV=firebase.firestore.FieldValue, gain=won?(online?80:50):(online?30:20);
-    const xp=(this.profile.xp||0)+gain, lvl=BF.levelFor(xp), up={ xp, level:lvl, coins:FV.increment(won?(online?25:15):5),
+    const FV=firebase.firestore.FieldValue, gain=Math.round((won?(online?80:50):(online?30:20))*(BF.Live?BF.Live.mult('xp'):1));
+    const xp=(this.profile.xp||0)+gain, lvl=BF.levelFor(xp), up={ xp, level:lvl, coins:FV.increment(Math.round((won?(online?25:15):5)*(BF.Live?BF.Live.mult('coins'):1))),
       'stats.matches':FV.increment(1), ['stats.'+(won?'wins':'losses')]:FV.increment(1) };
     if(won&&how) up['stats.finishes.'+how]=FV.increment(1);
     if(online) up['stats.online.'+(won?'wins':'losses')]=FV.increment(1);

@@ -360,10 +360,10 @@ BF.Arena = class {
     this.beys=[f1,f2,f3].filter(Boolean).map((f,fi)=>{ const root=new T.Group(), tilt=new T.Group(), spin=beyGroup(f.asm); tilt.add(spin); root.add(tilt); this.scene.add(root);
       if(f.scale) spin.scale.setScalar(f.scale);
       const ring=new T.Mesh(new T.RingGeometry(f.R+2,f.R+4.5,48),new T.MeshBasicMaterial({color:COLS[fi],transparent:true,opacity:0.7})); ring.position.z=0.6; root.add(ring);
-      const v={root,tilt,spin,ring,f,cos:Object.assign({trail:'none',launch:'none',aura:'none',win:'confetti'},f.d.cos||{}),trailPts:[]};
+      const v={root,tilt,spin,ring,f,cos:(c=>BF.Live?BF.Live.resolveCos(c):c)(Object.assign({trail:'none',launch:'none',aura:'none',win:'confetti'},f.d.cos||{})),trailPts:[]};
       v.color=new T.Color((v.cos.trailColor)||(f.d.paint&&f.d.paint.blade.color)||'#2ef2ff');
       // aura: soft glow disc under the Bey
-      const aura=new T.Mesh(new T.PlaneGeometry(f.R*4.2,f.R*4.2),new T.MeshBasicMaterial({map:glowTex(),color:v.cos.aura==='flame'?0xff6a1a:v.color,transparent:true,opacity:0,depthWrite:false,depthTest:false,blending:T.AdditiveBlending}));
+      const aura=new T.Mesh(new T.PlaneGeometry(f.R*4.2,f.R*4.2),new T.MeshBasicMaterial({map:glowTex(),color:v.cos.auraColor?new T.Color(v.cos.auraColor):v.cos.aura==='flame'?0xff6a1a:v.color,transparent:true,opacity:0,depthWrite:false,depthTest:false,blending:T.AdditiveBlending}));
       aura.position.z=1; aura.renderOrder=2; root.add(aura); v.aura=aura;
       // trail: a fading line of recent positions
       const tg=new T.BufferGeometry(); tg.setAttribute('position',new T.BufferAttribute(new Float32Array(60*3),3)); tg.setAttribute('color',new T.BufferAttribute(new Float32Array(60*3),3)); tg.setDrawRange(0,0);

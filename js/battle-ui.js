@@ -265,7 +265,7 @@ const B = BF.BattleUI = {
     const ar=this.arena;
     if(this.mst){ const M=this.mst, n=this.F.length, foe=i=>this.raid?(i===2?0:2):1-i;
       if(e.k==='hit'){ this.mstAll.hits++; this.mstAll.best=Math.max(this.mstAll.best,e.s); }
-      if(e.k==='move'&&M[e.i]) M[e.i].moves++;
+      if(e.k==='move'&&M[e.i]){ M[e.i].moves++; if(BF.Stats&&this.mode!=='local'&&e.i===(this.raid?0:this.me)) BF.Stats.add('moves.'+(e.name||e.id).replace(/ (II|III)$/,'')); }
       if(e.k==='click'&&M[foe(e.i)]) M[foe(e.i)].clicks++;
       if(e.k==='status'&&e.s!=='armor'&&M[foe(e.i)]) M[foe(e.i)].statuses++; }
     if(e.k==='hit' && e.s>1500){ this.hitStop=0.07; ar.shake=Math.min(6,(ar.shake||0)+2.5); this.flash('rgba(255,255,255,.35)'); }
