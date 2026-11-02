@@ -108,11 +108,12 @@ const FINISH={
 };
 BF.paintKey=(d,part,role)=>{
   if(role==='accent') return 'accent'; if(role==='horn') return 'horn'; if(role==='tip') return 'tip';
+  if(role==='metal'||role==='weight') return 'metal'; if(role==='chassis'||role==='armor') return 'armor'; if(role==='frame') return 'frame';
   return {blade:'blade',layer:'blade',ratchet:'ratchet',disc:'disc',bit:'bit',driver:'bit',chip:'chip'}[part.id]||'blade';
 };
 // main entry: material for one body of one part
 BF.materialFor=function(d,part,body,opts){
-  opts=opts||{}; const key=BF.paintKey(d,part,body.role); const paint=(d.paint&&d.paint[key])||BF.defaultPaint(BF.partMaterial(d,part,body.role).color);
+  opts=opts||{}; const key=BF.paintKey(d,part,body.role); const paint=(d.paint&&d.paint[key])||BF.defaultPaint(BF.partMaterial(d,part,body.role).color,key==='metal'?'metallic':key==='frame'||key==='armor'?'satin':undefined);
   const print=BF.Settings && BF.Settings.get('preview')==='print';
   const matKey=BF.partMaterial(d,part,body.role).mat, M=BF.MATERIALS[matKey]||BF.MATERIALS.PLA;
   if(print){ const col=BF.Settings.nearestFilament(paint.color); return new T.MeshStandardMaterial({color:col,roughness:Math.max(0.35,M.rough),metalness:M.metal*0.5,clippingPlanes:opts.clip||null,side:opts.double?T.DoubleSide:T.FrontSide}); }

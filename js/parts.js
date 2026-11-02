@@ -36,10 +36,10 @@ const SLOTS=['blade','core','driver'];
 BF.PART_SLOTS=SLOTS;
 function extract(d,slot){
   d=BF.clone(d); const P=d.paint||{};
-  if(slot==='blade') return {system:d.system, spin:d.spin, blade:d.blade, deco:d.deco, chip:d.chip, lock:d.lock, element:null,
-    weights:d.weights.part==='layer'||d.system==='X'?d.weights:null, paint:{blade:P.blade,accent:P.accent,chip:P.chip,horn:P.horn}};
+  if(slot==='blade') return {system:d.system, spin:d.spin, blade:d.blade, deco:d.deco, chip:d.chip, lock:d.lock, layer:d.layer, element:null,
+    weights:d.weights.part==='layer'||d.system==='X'?d.weights:null, paint:{blade:P.blade,accent:P.accent,chip:P.chip,horn:P.horn,metal:P.metal,armor:P.armor}};
   if(slot==='core') return d.system==='X' ? {system:'X', ratchet:d.ratchet, paint:{ratchet:P.ratchet}}
-    : {system:'Burst', disc:d.disc, weights:d.weights.part==='disc'?d.weights:null, paint:{disc:P.disc}};
+    : {system:'Burst', disc:d.disc, weights:d.weights.part==='disc'?d.weights:null, paint:{disc:P.disc,frame:P.frame}};
   return {system:d.system, bit:d.bit, paint:{bit:P.bit,tip:P.tip}};
 }
 function nameOf(slot,data){
@@ -50,7 +50,7 @@ function nameOf(slot,data){
 // build a battle design out of 3 owned copies
 function assemble(copies,name){
   const [B,C,D]=copies; let d=BF.defaultDesign(); d.system=B.data.system; d.spin=B.data.spin||'right';
-  Object.assign(d,{blade:B.data.blade, deco:B.data.deco, chip:B.data.chip||d.chip, lock:B.data.lock||d.lock});
+  Object.assign(d,{blade:B.data.blade, deco:B.data.deco, chip:B.data.chip||d.chip, lock:B.data.lock||d.lock, layer:B.data.layer||d.layer});
   if(B.data.weights) d.weights=B.data.weights;
   if(d.system==='X') d.ratchet=C.data.ratchet; else { d.disc=C.data.disc; if(C.data.weights) d.weights=C.data.weights; }
   d.bit=D.data.bit;

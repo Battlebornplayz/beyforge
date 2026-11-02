@@ -170,6 +170,27 @@ function barGeo(p0,p1,w,h){
 function studGeo(x,y,z){ const g=new T.CylinderGeometry(0.9,1.0,1.0,12); g.rotateX(Math.PI/2); g.translate(x,y,z+0.2); return fix(g); }
 
 // ---------- BLADE (X) / LAYER (Burst) ----------
+// Burst layer generations (real-life inspired): extra metal rings on top, or a chassis / armor piece underneath
+const LAYER_STYLES={
+  single:{label:'Single'},
+  dual:{label:'Dual', metal:{r:0.62,h:1.2,teeth:0}},
+  god:{label:'God', metal:{r:0.72,h:1.4,teeth:3}},
+  choz:{label:'Cho-Z', metal:{r:0.84,h:1.8,teeth:6}},
+  gt:{label:'GT', metal:{r:0.56,h:2.2,teeth:0,role:'weight'}, chip:true},
+  sparking:{label:'Sparking', low:{role:'chassis',r:0.9,h:3,lobes:true}},
+  db:{label:'DB', low:{role:'armor',r:0.94,h:2.4,lobes:6}, metal:{r:0.46,h:1.6,teeth:4}},
+  bu:{label:'BU', low:{role:'armor',r:0.96,h:2.6,lobes:4}, metal:{r:0.6,h:1.8,teeth:5}}
+};
+BF.LAYER_STYLES=LAYER_STYLES;
+const FRAMES={
+  comet:{label:'Comet', f:(a,R,s)=>R+s*Math.pow(Math.max(0,Math.cos(3*a)),6)},
+  helix:{label:'Helix', f:(a,R,s)=>R+s*(0.5+0.5*Math.sin(2*a+Math.sin(a*2)*0.8))},
+  wingspan:{label:'Wingspan', f:(a,R,s)=>R+s*Math.pow(Math.abs(Math.cos(a)),3)},
+  dirk:{label:'Dirk', f:(a,R,s)=>R+s*Math.pow(Math.max(0,Math.cos(4*a)),10)},
+  flash:{label:'Flash', f:(a,R,s)=>R+s*(((a*5/TAU)%1)<0.35?((a*5/TAU)%1)/0.35:0)},
+  crater:{label:'Crater', f:(a,R,s)=>R+s*(0.35+0.25*Math.cos(8*a))}
+};
+BF.DISC_FRAMES=FRAMES;
 function buildBlade(d,D,isB,issues){
   const b=d.blade, N=360, left=d.spin==='left';
   const R=b.diameter/2;
@@ -352,12 +373,20 @@ function buildBlade(d,D,isB,issues){
   }
 
   const bodies=[{role:'main',geo:mergeNI(geos)}];
+  // Burst generations: metal ring on top of the core, chassis/armor under the layer
+  let lowH=0, topH=0; const LS=isB&&d.layer?LAYER_STYLES[d.layer.style]:null;
+  if(LS&&LS.metal){ const M=LS.metal, rin=holeMax+1.2, rout=Math.max(rin+1.6,Rcore*M.r);
+    const sh=shapeFrom(polarPts(a=>rout*(1-(M.teeth?0.1*Math.pow(Math.max(0,Math.cos(M.teeth*a)),2):0)),120)); sh.holes.push(pathFrom(circlePts(0,0,rin,48)));
+    topH=M.h; bodies.push({role:M.role||'metal',geo:extrude(sh,M.h,H+tierH)}); }
+  if(LS&&LS.low){ const L0=LS.low, rout=R*L0.r, n=L0.lobes===true?W:(L0.lobes||0); lowH=L0.h;
+    const sh=shapeFrom(polarPts(a=>rout*(n?0.84+0.16*Math.pow(Math.abs(Math.cos(n*a/2)),2):1),180)); sh.holes.push(pathFrom(polarPts(holeFn,180)));
+    bodies.push({role:L0.role,geo:extrude(sh,lowH,-lowH)}); }
   const ag=mergeNI(acc); if(ag) bodies.push({role:'accent',geo:ag});
   const hg=mergeNI(horns); if(hg) bodies.push({role:'horn',geo:hg});
   if(lift>0.3) issues.push({lvl:'info',msg:'Lifted wings print with supports underneath.'});
   const insList=pockets.map(pk=>({x:pk.x,y:left?-pk.y:pk.y,z:baseH/2,ins:d.weights.insert,rot:pk.a}));
-  return {id:isB?'layer':'blade', label:isB?'Layer':'Blade', height:H+tierH, bodies, inserts:insList, printFlip:false,
-    meta:{R:Rmax, Rcore, rm, holeMax, H, tipZ, W, span, rs:Array.from(rs), baseH, slope:b.slope, tierH, outline:oB.filter((_,i)=>i%2===0).map(q=>[q[0],q[1]]), wingAngles:Array.from({length:W},(_,i)=>{ const a=i*TAU/W+shiftOf(i); return left?-(a+span):a; }), span, left}};
+  return {id:isB?'layer':'blade', label:isB?'Layer':'Blade', height:H+tierH+topH, zMin:lowH?-lowH:0, bodies, inserts:insList, printFlip:false,
+    meta:{lowH, style:LS?d.layer.style:null, R:Rmax, Rcore, rm, holeMax, H, tipZ, W, span, rs:Array.from(rs), baseH, slope:b.slope, tierH, outline:oB.filter((_,i)=>i%2===0).map(q=>[q[0],q[1]]), wingAngles:Array.from({length:W},(_,i)=>{ const a=i*TAU/W+shiftOf(i); return left?-(a+span):a; }), span, left}};
 }
 
 // ---------- RATCHET (X) ----------
@@ -462,7 +491,11 @@ function buildDisc(d,D,issues){
     const rin=Math.max(R*0.68, D.drvBodyR+1.0);
     if(rin<R-1.2){ const rs=shapeFrom(outline); rs.holes.push(pathFrom(circlePts(0,0,rin,64))); geos.push(extrude(rs,rimH+0.05,-rimH)); }
   }
-  return {id:'disc', label:'Disc', height:c.thickness, zMin:rimH>0.2?-rimH:0, bodies:[{role:'main',geo:mergeNI(geos)}], inserts, printFlip:rimH>0.2, meta:{R, rim:rimH}};
+  const bodies=[{role:'main',geo:mergeNI(geos)}]; let Rf=R;
+  const fr=c.frame&&c.frame.on&&FRAMES[c.frame.shape];
+  if(fr){ const sz=clamp(+c.frame.size||3,1,8), out=polarPts(a=>fr.f(a,R+0.2,sz),240); Rf=Math.max(...out.map(q=>Math.hypot(q[0],q[1])));
+    const fs=shapeFrom(out); fs.holes.push(pathFrom(circlePts(0,0,R+0.15,96))); const fh=Math.max(1.2,c.thickness*0.7); bodies.push({role:'frame',geo:extrude(fs,fh,(c.thickness-fh)/2)}); }
+  return {id:'disc', label:'Disc', height:c.thickness, zMin:rimH>0.2?-rimH:0, bodies, inserts, printFlip:rimH>0.2, meta:{R:Rf, rim:rimH, frame:fr?c.frame.shape:null}};
 }
 
 // ---------- CHIP / CAP: decorative top piece that pegs into the center hole ----------
@@ -499,7 +532,7 @@ BF.build = function(d){
     const disc=buildDisc(d,D,issues);
     const drv=buildBit(d,D,true,d.disc.thickness);
     const layer=buildBlade(d,D,true,issues);
-    drv.z0=0; disc.z0=drv.seatZ; layer.z0=disc.z0+d.disc.thickness;
+    drv.z0=0; disc.z0=drv.seatZ; layer.z0=disc.z0+d.disc.thickness+(layer.meta.lowH||0);
     if(D.engage>layer.height-0.6) issues.push({lvl:'warn',msg:'Driver lock prongs are taller than the layer core — raise the core height.'});
     if(disc.meta.rim>drv.seatZ-0.5) issues.push({lvl:'warn',msg:'Disc rim hangs low enough to scrape the stadium — lower rim weight or use a taller tip.'});
     parts.push(layer,disc,drv);
@@ -525,6 +558,9 @@ function moments(geo){
 BF.moments = moments;
 BF.partMaterial = function(d,part,role){
   const P=d.paint||{}, pc=(k,fb)=>(P[k]&&P[k].color)||fb;
+  if(role==='metal'||role==='weight') return {mat:'METAL', color:pc('metal','#c3c9d4')};
+  if(role==='chassis'||role==='armor') return {mat:d.blade.material, color:pc('armor',pc('accent',d.deco.accent))};
+  if(role==='frame') return {mat:d.disc.material, color:pc('frame',pc('accent',d.deco.accent))};
   if(role==='accent') return {mat:d.blade.material, color:pc('accent',d.deco.accent)};
   if(role==='horn') return {mat:d.blade.material, color:pc('horn',d.deco.accent)};
   if(part.id==='chip') return {mat:d.blade.material, color:pc('chip','#ffd21f')};

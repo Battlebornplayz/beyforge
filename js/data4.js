@@ -69,6 +69,8 @@ const norm=BF.normalize;
 BF.normalize=function(d){
   const old=d&&!d.paint;
   const out=norm(d);
+  out.layer=Object.assign({style:'single'},out.layer||{}); if(!BF.LAYER_STYLES||!BF.LAYER_STYLES[out.layer.style]) out.layer.style='single';
+  out.disc.frame=Object.assign({on:false,shape:'comet',size:3},out.disc.frame||{});
   if(old){ // carry v3 colors into the new paint system
     out.paint.blade.color=out.blade.color; out.paint.accent.color=out.deco.accent; out.paint.ratchet.color=out.ratchet.color;
     out.paint.disc.color=out.disc.color; out.paint.bit.color=out.bit.color; out.paint.tip.color=out.bit.tipColor; out.paint.horn.color=out.deco.accent;

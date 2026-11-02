@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const BF=window.BF;
-const ROLE_NAME={main:'body',accent:'accent',tip:'tip'};
+const ROLE_NAME={main:'body',accent:'accent',tip:'tip',horn:'horn',metal:'metal ring',weight:'weight',chassis:'chassis',armor:'armor',frame:'frame'};
 
 // print-ready copy of a body's triangles: flipped if needed, sitting on z=0, centered
 function printTris(part, roleFilter){
