@@ -12,6 +12,7 @@ const App = BF.App = {
     this.viewer=new BF.Viewer($('#viewport'));
     this.renderControls(); this.rebuild();
     this.bindToolbar(); this.bindTabs(); this.bindKeys(); this.bindFolder(); this.bindModal();
+    const mb=$('#muteBtn'); const pm=()=>mb.classList.toggle('muted',BF.Sfx.muted); pm(); mb.addEventListener('click',()=>{ BF.Sfx.toggle(); pm(); });
     BF.Store.init();
     this.logo();
   },
@@ -110,11 +111,13 @@ const App = BF.App = {
       document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!=='view-'+b.dataset.tab);
       if(b.dataset.tab==='library') this.renderLibrary();
       if(b.dataset.tab==='forge') this.viewer.resize();
+      if(b.dataset.tab==='battle'){ if(!BF.BattleUI.arena) BF.BattleUI.init(); BF.BattleUI.show(); }
     }));
   },
   bindKeys(){
     document.addEventListener('keydown',e=>{
       if(e.target.matches('input[type=text],input[type=number],select')) return;
+      if(!$('#view-forge').hidden===false) return;
       if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?this.redo():this.undo(); }
       else if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); this.redo(); }
       else if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); this.save(); }

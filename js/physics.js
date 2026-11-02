@@ -7,7 +7,8 @@ const SHAPE_AGG={blade:.9,claw:1,saw:.85,fin:.72,spike:.78,hammer:.4,round:.18,r
 const G=9.81;
 
 // friction torque model calibrated so a ball tip ~2 min, flat ~20-30 s, rubber ~10-15 s for a typical build
-function tipFriction(tip){ return tip.mu*(0.6+0.35*tip.rc)*0.56e-3; } // effective lever (m) times mu
+function tipFriction(tip){ return tip.mu*(0.85+0.15*tip.rc)*0.48e-3; }
+BF.tipFriction=tipFriction; // effective lever (m) times mu
 
 BF.spinTime = function(Izz_gmm2, M_g, tip, R, rough, launch){
   const I=Izz_gmm2*1e-9, M=M_g/1000;

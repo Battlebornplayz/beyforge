@@ -11,7 +11,7 @@ BF.buildStadium = function(kind, diameter){
   for(let i=0;i<=steps;i++){ const r=i/steps*R; prof.push(new T.Vector2(r, depth*r*r/R)); }
   const wallZ=depth*R; prof.push(new T.Vector2(R, wallZ+28)); prof.push(new T.Vector2(R+8, wallZ+28)); prof.push(new T.Vector2(R+8,-6)); prof.push(new T.Vector2(0.01,-6));
   const bowl=new T.LatheGeometry(prof,128); bowl.rotateX(Math.PI/2); bowl.computeVertexNormals();
-  const mat=new T.MeshLambertMaterial({color:0x15122c, emissive:0x05040c, side:T.DoubleSide});
+  const mat=new T.MeshLambertMaterial({color:0x0b0a19, side:T.DoubleSide});
   const m=new T.Mesh(bowl,mat); m.receiveShadow=true; g.add(m);
   const ringM=new T.MeshBasicMaterial({color:kind==='X'?0x2ef2ff:0xff2e88});
   const lip=new T.Mesh(new T.TorusGeometry(R+1,1.2,8,160), ringM); lip.position.z=wallZ+28; g.add(lip);
@@ -22,7 +22,7 @@ BF.buildStadium = function(kind, diameter){
     for(let i=0;i<=n*4;i++){ const a=i/(n*4)*Math.PI*2; const tooth=(i%4<2)?1.6:0; pts.push(new T.Vector3((rr+tooth)*Math.cos(a),(rr+tooth)*Math.sin(a),zAt(rr)+0.6)); }
     const rail=new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({color:0x2ef2ff}));
     g.add(rail);
-    const band=new T.Mesh(new T.RingGeometry(rr-3,rr+3,160,1), new T.MeshLambertMaterial({color:0x2a2550,side:T.DoubleSide}));
+    const band=new T.Mesh(new T.RingGeometry(rr-3,rr+3,160,1), new T.MeshLambertMaterial({color:0x1d1a3d,side:T.DoubleSide}));
     band.position.z=zAt(rr)+0.3; g.add(band);
     // over zones + xtreme pocket
     [[0.25,0.5,0xff2e88],[2.35,0.5,0xff2e88],[4.45,0.9,0xffb020]].forEach(([a,w,c])=>{
@@ -72,7 +72,7 @@ BF.Viewer = class {
     const c2=new T.PointLight(0xff2e88,1.2,500); c2.position.set(120,80,30); s.add(c2);
     // floor
     const floor=this.floor=new T.Group();
-    const disk=new T.Mesh(new T.CircleGeometry(220,96), new T.MeshLambertMaterial({color:0x0b0917}));
+    const disk=new T.Mesh(new T.CircleGeometry(220,96), new T.MeshLambertMaterial({color:0x08070f}));
     disk.receiveShadow=true; floor.add(disk);
     const grid=new T.PolarGridHelper(200,16,8,96,0x2a2552,0x1a1735); grid.rotateX(Math.PI/2); grid.position.z=0.05; floor.add(grid);
     const glow=new T.Mesh(new T.RingGeometry(34,35,128), new T.MeshBasicMaterial({color:0x2ef2ff,transparent:true,opacity:0.6})); glow.position.z=0.1; floor.add(glow);
@@ -137,6 +137,7 @@ BF.Viewer = class {
   }
   tick(){
     const dt=Math.min(0.05,this.clock.getDelta()), st=this.state;
+    if(!this.el.offsetParent) return;
     st.explodeT+= (st.explode-st.explodeT)*Math.min(1,dt*7);
     const n=this.partGroups.length;
     this.partGroups.forEach(g=>{ const k=n-1-g.userData.ix; g.position.z=g.userData.z0+st.explodeT*k*14; });
