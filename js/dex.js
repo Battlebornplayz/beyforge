@@ -50,7 +50,7 @@ const Thumb={ cache:{}, q:[], busy:false, W:320, H:240,
   want(id,cb){ if(this.cache[id]!==undefined) return cb(this.cache[id]); this.q.push([id,cb]); this.pump(); },
   pump(){ if(this.busy||!this.q.length) return; this.busy=true; const step=()=>{ const job=this.q.pop(); if(!job){ this.busy=false; return; }
       const [id,cb]=job; if(this.cache[id]===undefined){ try{ this.cache[id]=this.render(id); }catch(e){ console.warn('thumb',id,e); this.cache[id]=''; } } cb(this.cache[id]);
-      (window.requestIdleCallback||setTimeout)(step,8); }; step(); },
+      (window.requestIdleCallback?requestIdleCallback(step,{timeout:120}):setTimeout(step,8)); }; step(); },
   r(){ if(this._r) return this._r; const r=new T.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true}); r.outputEncoding=T.sRGBEncoding; r.toneMapping=T.ACESFilmicToneMapping; r.toneMappingExposure=.82; r.setPixelRatio(1); r.setSize(this.W,this.H,false);
     const s=new T.Scene(); lights(s,0x2ef2ff,.35); this._s=s; this._cam=new T.PerspectiveCamera(28,this.W/this.H,1,3000); this._cam.up.set(0,0,1); return this._r=r; },
   render(id){ const r=this.r(), c=BF.Catalog.get(id), {g,rad}=partMesh(id); g.rotation.z=-0.5; this._s.add(g); const cam=this._cam; cam.position.set(...camFor(c,rad*4.6)); cam.lookAt(0,0,0);
@@ -73,7 +73,16 @@ function live(cv,id,opt){ opt=opt||{}; const c=BF.Catalog.get(id); let r;
   loop(); return {set,kill}; }
 
 // ---------- part facts ----------
-const statsOf=c=>{ c._f=c._f||BF.fighter(BF.Catalog.design(c.id)); const f=c._f; return {atk:Math.round(f.atk),def:Math.round(f.def),sta:Math.round(f.sta),brs:Math.round(f.brs),stb:Math.round(f.stb)}; };
+// measuring a part runs the full physics analysis (slow), so results are saved per device and filled in the background. Bump SKEY when physics or the catalog change.
+const SKEY='bf.dexStats.v68';
+const Stat={ mem:null, load(){ if(!this.mem){ try{ this.mem=JSON.parse(localStorage.getItem(SKEY))||{}; }catch(e){ this.mem={}; } } return this.mem; },
+  has(c){ return !!this.load()[c.id]; },
+  get(c){ const m=this.load(); if(!m[c.id]){ const f=BF.fighter(BF.Catalog.design(c.id)); m[c.id]={atk:Math.round(f.atk),def:Math.round(f.def),sta:Math.round(f.sta),brs:Math.round(f.brs),stb:Math.round(f.stb)}; this.save(); } return m[c.id]; },
+  save(){ clearTimeout(this._t); this._t=setTimeout(()=>{ try{ localStorage.setItem(SKEY,JSON.stringify(this.mem)); }catch(e){} },800); },
+  warm(root){ const seen=new Set(), first=[...root.querySelectorAll('[data-stat]')].map(e=>e.dataset.stat); this.todo=first.concat(BF.CATALOG.map(c=>c.id)).filter(id=>{ if(seen.has(id)||this.load()[id]) return false; seen.add(id); return true; }); if(!this.running&&this.todo.length){ this.running=true; this.step(); } },
+  step(){ const id=this.todo.shift(); if(!id){ this.running=false; return; } const c=BF.Catalog.get(id); try{ const s=this.get(c); document.querySelectorAll(`[data-stat="${id}"]`).forEach(e=>{ e.innerHTML=statLine(s); }); }catch(e){ console.warn('stat',id,e); } setTimeout(()=>this.step(),40); } };
+const statsOf=c=>Stat.get(c);
+const statLine=s=>`<span>ATK ${s?s.atk:'??'}</span><span>DEF ${s?s.def:'??'}</span><span>STA ${s?s.sta:'??'}</span>`;
 // real chance to pull this part: same logic as BF.Packs.open + BF.Catalog.pool
 function sources(c){ const out=[]; (BF.Packs?BF.Packs.list():[]).forEach(p=>{ if(p.system&&p.system!==c.sys) return;
     const t=Object.values(p.odds).reduce((a,b)=>a+(+b||0),0)||1, sysP=p.system?1:(c.sys==='X'?.6:.4), slotP=p.slots==='each'?1:1/3; let per=0;
@@ -131,11 +140,11 @@ const Dex=BF.Dex={
         ${sel('own','Collection',{'':'Owned + missing',have:'Owned',miss:'Missing'})}
         ${sel('sort','Sort',{rarity:'Rarity',name:'Name',attack:'Attack',defense:'Defense',stamina:'Stamina',owned:'Most owned'})}
         <span class="dx-count">${L.length} result${L.length===1?'':'s'}</span></div>
-      <div class="dx-grid">${vis.map(c=>{ const n=own.get(c.id)||0, s=n?statsOf(c):null, gs=n?(c.gims||[]).filter(g=>BF.GIMMICKS[g]):[];
+      <div class="dx-grid">${vis.map(c=>{ const n=own.get(c.id)||0, s=n&&Stat.has(c)?statsOf(c):null, gs=n?(c.gims||[]).filter(g=>BF.GIMMICKS[g]):[];
         return `<article class="dx-card${n?' own':''}" data-open="${c.id}" tabindex="0" role="button" aria-label="${esc(c.name)}" style="--rc:${R(c.rarity).color}">
           <div class="dx-img">${thumb(c,n)}<div class="dx-tl">${tags(c)}</div><div class="dx-tr">${shiny.has(c.id)?'<span class="dx-b shiny">SHINY</span>':''}${n?`<span class="dx-b ok">OWNED${n>1?' x'+n:''}</span>`:'<span class="dx-b miss">MISSING</span>'}</div>
             ${gs.length?`<div class="dx-bl">${gs.map(g=>`<span class="dx-gim" title="${esc(BF.GIMMICKS[g].label)}">${BF.GIMMICKS[g].icon}</span>`).join('')}</div>`:''}</div>
-          <div class="dx-body"><b>${esc(c.name)}</b><span class="dx-sub2">${sub(c)}</span><div class="dx-stats"><span>ATK ${s?s.atk:'??'}</span><span>DEF ${s?s.def:'??'}</span><span>STA ${s?s.sta:'??'}</span></div></div></article>`; }).join('')||'<div class="dx-empty">No parts match those filters.</div>'}</div>
+          <div class="dx-body"><b>${esc(c.name)}</b><span class="dx-sub2">${sub(c)}</span><div class="dx-stats"${n?` data-stat="${c.id}"`:''}>${statLine(s)}</div></div></article>`; }).join('')||'<div class="dx-empty">No parts match those filters.</div>'}</div>
       <div class="dx-pages">${pages>1?`<button type="button" data-pg="${this.page-1}"${this.page?'':' disabled'} aria-label="Previous page">‹</button>${Array.from({length:pages},(_,i)=>i).filter(i=>i===0||i===pages-1||Math.abs(i-this.page)<=2).map((i,k,a)=>`${k&&i-a[k-1]>1?'<em>…</em>':''}<button type="button" data-pg="${i}" class="${i===this.page?'on':''}">${i+1}</button>`).join('')}<button type="button" data-pg="${this.page+1}"${this.page<pages-1?'':' disabled'} aria-label="Next page">›</button>`:''}</div>`; },
 
   // ---------- 2. Collector binder ----------
@@ -183,7 +192,7 @@ const Dex=BF.Dex={
     this.killLive(); root.className='dx v-'+v;
     root.innerHTML=this.head()+(v==='binder'?this.vBinder():v==='locker'?this.vLocker():v==='show'?this.vShow():this.vGrid());
     this.wire(root); if(v==='locker') this.fillInspector(); if(v==='show'){ this.fillHero(); const box=$('#dxStrip'), s=box&&box.querySelector('.sel'); if(s) box.scrollLeft=s.offsetLeft-box.clientWidth/2+s.offsetWidth/2; }
-    this.lazy(root); if(typing){ const n=root.querySelector('#dxQ'); if(n){ n.focus(); n.setSelectionRange(cur,cur); } } },
+    this.lazy(root); Stat.warm(root); if(typing){ const n=root.querySelector('#dxQ'); if(n){ n.focus(); n.setSelectionRange(cur,cur); } } },
   lazy(root){ if(this._io) this._io.disconnect(); const load=img=>Thumb.want(img.dataset.th,u=>{ if(u&&img.isConnected) img.src=u; });
     const imgs=root.querySelectorAll('img[data-th]:not([src])'); if(!('IntersectionObserver' in window)){ imgs.forEach(load); return; }
     this._io=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ this._io.unobserve(e.target); load(e.target); } })); imgs.forEach(i=>this._io.observe(i)); },
