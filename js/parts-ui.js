@@ -69,7 +69,11 @@ const UI = BF.PartsUI = {
     let list=Pa.list.filter(p=>this.filter==='all'||p.slot===this.filter);
     list.sort(this.sort==='level'?(a,b)=>b.xp-a.xp:this.sort==='new'?(a,b)=>b.ts-a.ts:(a,b)=>rarOrder.indexOf(a.rarity)-rarOrder.indexOf(b.rarity)||(b.shiny-a.shiny)||b.xp-a.xp);
     root.innerHTML=`
-      <section class="pshop">${Object.entries(BF.PACKS).map(([k,v])=>`<div class="packcard pk-${k}"><b>${esc(v.label)}</b><span>${esc(v.desc)}</span><button class="btn primary" data-pack="${k}"><span class="coin">${Pa.price(k)}</span></button></div>`).join('')}
+      <section class="pshop">${BF.Packs.list().map(p=>{ const left=BF.Packs.pityLeft(p), el=BF.Packs.elementOf(p);
+          return `<div class="packcard pk-${p.model}" style="--c1:${p.colors[0]};--c2:${p.colors[1]}"><img class="pk3d" src="${BF.PackModel.thumb(p)}" alt="" data-pinfo="${p.id}">
+            <b>${esc(p.name)}${el?` <span class="elb" style="--c:${BF.ELEMENTS[el].color}">${BF.ELEMENTS[el].icon}</span>`:''}</b><span>${esc(p.desc)}</span>
+            <em class="odds">${esc(BF.Packs.oddsText(p))} · Shiny 1/${p.shiny}</em>${left!=null?`<em class="pity">Legendary guaranteed in ≤ ${left} pack${left===1?'':'s'}</em>`:''}
+            <button class="btn primary" data-pack="${p.id}"><span class="coin">${BF.Packs.price(p)}</span></button></div>`; }).join('')}
         <div class="packcard pk-mint"><b>Mint from the Forge</b><span>Turn your Forge design’s blade, core or driver into an owned part. ${BF.MINT_PRICE} coins each.</span><button class="btn" data-goforge>Go to Forge</button></div></section>
       <section><div class="sechead"><h3>Battle Beys</h3><button class="btn primary" id="newDeck">+ Build a Battle Bey</button></div>
         <div class="deckgrid">${Pa.decks.map(k=>{ const c=k.parts.map(id=>Pa.get(id)); const ok=!c.some(x=>!x);
@@ -83,6 +87,7 @@ const UI = BF.PartsUI = {
         <div class="seg sm" id="pSort">${[['rarity','Rarity'],['level','Level'],['new','Newest']].map(([k,l])=>`<button class="${this.sort===k?'on':''}" data-s="${k}">${l}</button>`).join('')}</div></div>
         <div class="partgrid">${list.map(p=>partCard(p)).join('')||'<div class="fine">Nothing here.</div>'}</div></section>`;
     root.querySelectorAll('[data-pack]').forEach(b=>b.onclick=()=>this.buyPack(b.dataset.pack));
+    root.querySelectorAll('[data-pinfo]').forEach(b=>b.onclick=()=>this.packInfo(b.dataset.pinfo));
     root.querySelector('[data-goforge]').onclick=()=>document.querySelector('#tabs [data-tab=forge]').click();
     root.querySelector('#newDeck').onclick=()=>this.deckBuilder();
     root.querySelectorAll('[data-deck]').forEach(el=>{ const k=Pa.decks.find(x=>x.id===el.dataset.deck);
@@ -107,7 +112,21 @@ const UI = BF.PartsUI = {
     const price=P().price(kind), A=BF.Account;
     if(!(A&&A.profile)) return BF.App.toast('Sign in (Blader tab) to earn coins and open packs','bad');
     if((A.profile.coins||0)<price) return BF.App.toast(`You need ${price} coins — win battles and grab the daily bonus`,'bad');
-    try{ const made=await P().buyPack(kind); this.reveal(made,BF.PACKS[kind].label); }catch(e){ BF.App.toast(e.message,'bad'); }
+    try{ const made=await P().buyPack(kind); this.reveal(made,BF.Packs.get(kind).name); }catch(e){ BF.App.toast(e.message,'bad'); }
+  },
+  // pack details: live 3D model + full odds table
+  packInfo(id){
+    const p=BF.Packs.get(id), m=$('#partModal'), b=$('#partBody'), left=BF.Packs.pityLeft(p), t=Object.values(p.odds).reduce((a,x)=>a+(+x||0),0)||1; m.hidden=false;
+    b.innerHTML=`<div class="modal-head"><h3>${esc(p.name)}</h3><button class="icon-x big" data-x>×</button></div>
+      <div class="pkinfo"><canvas class="pklive"></canvas><div><p>${esc(p.desc)}</p>
+        <table class="oddstab">${['common','rare','epic','legendary'].map(r=>`<tr style="--c:${BF.RARITY[r].color}"><td>${BF.RARITY[r].label}</td><td><div class="ob"><i style="width:${(p.odds[r]||0)/t*100}%"></i></div></td><td class="mono">${(+((p.odds[r]||0)/t*100).toFixed(2))}%</td></tr>`).join('')}
+          <tr><td>✨ Shiny</td><td></td><td class="mono">1 in ${p.shiny}</td></tr></table>
+        <div class="fine">${p.count} part${p.count>1?'s':''}${p.slots==='each'?' — one blade, one core, one driver':' — random slot'}. ${p.pity>0?`Pity: a Legendary is guaranteed within ${p.pity} packs${left!=null?` (${left} to go)`:''}. `:''}Duplicate protection: re-rolls parts you already own at the same rarity.</div>
+        <button class="btn primary wide" data-buy><span class="coin">${BF.Packs.price(p)}</span> Open</button></div></div>`;
+    const live=BF.PackModel.live(b.querySelector('.pklive'),p);
+    const close=()=>{ live.stop(); m.hidden=true; };
+    b.querySelector('[data-x]').onclick=close;
+    b.querySelector('[data-buy]').onclick=()=>{ live.stop(); m.hidden=true; this.buyPack(id); };
   },
   reveal(parts,title){
     const m=$('#partModal'), b=$('#partBody'); m.hidden=false;

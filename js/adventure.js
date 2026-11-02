@@ -16,6 +16,7 @@ function designFor(seed,el){
   for(let k=0;k<400;k++){ const d=BF.randomDesign((seed*131+k*7919)>>>0); if(!el||BF.allowedElements(d).includes(el)){ d.element={p:el||null,s:null}; return d; } }
   const d=BF.randomDesign(seed); d.element={p:null,s:null}; return d;
 }
+BF.designForElement=designFor;
 function boost(d,mul,sigs){ d.prog={mul:{atk:mul,def:mul,sta:mul,brs:mul,stb:mul},moveLv:{},unlocked:null};
   if(sigs){ d.sigs={}; const pe=BF.partElements(d); sigs.forEach(sl=>d.sigs[sl]=BF.sigFor(pe[sl])); } return d; }
 const stadiumFor=(d,terrain)=>Object.assign({},BF.STADIUMS[d.system==='X'?'X':'Burst'],{terrain:terrain||'none'});

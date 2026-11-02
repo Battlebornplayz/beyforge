@@ -26,7 +26,10 @@ const App = BF.App = {
     this.bindToolbar(); this.bindTabs(); this.bindKeys(); this.bindFolder(); this.bindModal();
     const mb=$('#muteBtn'); const pm=()=>mb.classList.toggle('muted',BF.Sfx.muted); pm(); mb.addEventListener('click',()=>{ BF.Sfx.toggle(); pm(); });
     BF.Store.init();
-    BF.Social.init(); BF.Account.init(); BF.Native.init(); BF.Card.bind(); BF.Parts.init(); this.bindLibrary(); BF.Share.checkHash(); BF.Tour.auto();
+    // each start-up step runs on its own so one failure (e.g. offline Firebase) can't block the rest
+    const safe=(n,f)=>{ try{ f(); }catch(e){ console.warn('init '+n,e); } };
+    safe('ui6',()=>BF.UI6.init()); safe('social',()=>BF.Social.init()); safe('account',()=>BF.Account.init()); safe('native',()=>BF.Native.init());
+    safe('card',()=>BF.Card.bind()); safe('parts',()=>BF.Parts.init()); safe('library',()=>this.bindLibrary()); safe('share',()=>BF.Share.checkHash()); safe('tour',()=>BF.Tour.auto());
     $('#scExit').addEventListener('click',()=>BF.Showcase.toggle()); $('#scCard').addEventListener('click',()=>BF.Card.open(BF.clone(this.d)));
     $('#annX').addEventListener('click',()=>{ $('#announce').hidden=true; BF.LS.set('bf.announceSeen',this._ann||''); });
     this.logo();
@@ -60,6 +63,7 @@ const App = BF.App = {
   schedule(ms){ clearTimeout(this.t); this.t=setTimeout(()=>this.rebuild(),ms); },
   renderControls(){ BF.UI.render($('#controls'),this.d,(k,v,o)=>this.change(k,v,o)); },
   rebuild(){
+    if(BF.Settings.get('accent')==='bey'&&BF.UI6) BF.UI6.apply();
     try{
       const t0=performance.now();
       const asm=BF.build(this.d);

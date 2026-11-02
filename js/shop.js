@@ -12,12 +12,13 @@ const P={
   launch:{none:0,ring:0,spiral:200,petals:250,lightning:300},
   aura:{none:0,glow:0,pulse:200,flame:350},
   win:{confetti:0,spotlight:250,shockwave:250,fireworks:300},
-  card:{standard:0,neon:200,gold:400,holo:600,darkmatter:800}
+  card:{standard:0,neon:200,gold:400,holo:600,darkmatter:800},
+  theme:{hybrid:0,xtreme:500,neon:500,metal:800,anime:800,burst:800}
 };
 const LEVEL={ 'card:darkmatter':5, 'trail:rainbow':4, 'pattern:galaxy':3 };
-const CATS={finish:'Paint finishes',pattern:'Patterns',sticker:'Stickers',trail:'Spin trails',launch:'Launch effects',aura:'Auras',win:'Win animations',card:'Card styles'};
+const CATS={finish:'Paint finishes',pattern:'Patterns',sticker:'Stickers',trail:'Spin trails',launch:'Launch effects',aura:'Auras',win:'Win animations',card:'Card styles',theme:'UI themes'};
 BF.CARD_STYLES={standard:'Standard',neon:'Neon',gold:'Gold',holo:'Holo foil',darkmatter:'Dark Matter'};
-const label=(cat,k)=>({finish:BF.FINISHES,pattern:BF.PATTERNS,sticker:BF.STICKERS,trail:BF.COSMETICS.trail,launch:BF.COSMETICS.launch,aura:BF.COSMETICS.aura,win:BF.COSMETICS.win,card:BF.CARD_STYLES}[cat]||{})[k]||k;
+const label=(cat,k)=>({finish:BF.FINISHES,pattern:BF.PATTERNS,sticker:BF.STICKERS,trail:BF.COSMETICS.trail,launch:BF.COSMETICS.launch,aura:BF.COSMETICS.aura,win:BF.COSMETICS.win,card:BF.CARD_STYLES,theme:Object.fromEntries(Object.entries(BF.UI_THEMES||{}).map(([a,b])=>[a,b.label]))}[cat]||{})[k]||k;
 
 BF.Shop = {
   price(cat,k){ return (P[cat]&&P[cat][k])||0; },
@@ -55,6 +56,7 @@ BF.Shop = {
     if(cat==='sticker'){ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'); x.translate(32,32); BF.drawSticker(x,{k,color:'#ffd21f',text:k==='number'?'7':'BEY'},52); return `<img src="${c.toDataURL()}" alt="">`; }
     if(cat==='pattern'&&k!=='none'){ const c=BF.paintCanvas(Object.assign(BF.defaultPaint('#1d1846','gloss'),{pattern:k,patternColor:'#ff2e88',patternAlpha:0.9}),18,null); const s=document.createElement('canvas'); s.width=s.height=64; s.getContext('2d').drawImage(c,0,0,64,64); return `<img src="${s.toDataURL()}" alt="">`; }
     if(cat==='card') return `<span class="cardmini cs-${k}"></span>`;
+    if(cat==='theme') return `<span class="thememini th-${k}"><i></i><i></i><i></i></span>`;
     return `<span class="glyph" style="--c:${col}">${esc(label(cat,k)[0])}</span>`;
   },
   // daily login bonus

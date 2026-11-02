@@ -131,22 +131,17 @@ const P = BF.Parts = {
     Object.values(p.data.paint||{}).forEach(pt=>{ if(!pt) return; const c=new THREE.Color(pt.color); const hsl={}; c.getHSL(hsl); c.setHSL((hsl.h+0.5)%1,Math.max(0.6,hsl.s),Math.min(0.62,Math.max(0.42,hsl.l))); pt.color='#'+c.getHexString(); pt.finish=Math.random()<0.5?'chrome':'pearl'; });
     return p;
   },
-  async create(slot,d,rarity,source,extra){ const p=this.make(slot,d,rarity,source); if(p.shiny) this.shinyPaint(p);
-    if(['legendary','limited'].includes(rarity)) p.sig=BF.sigFor(BF.partElements(d)[slot]);
-    if(extra) Object.assign(p,extra); await this.put(p); return p; },
+  async create(slot,d,rarity,source,extra){ const p=this.make(slot,d,rarity,source); if(extra) Object.assign(p,extra); if(p.shiny) this.shinyPaint(p);
+    if(['legendary','limited'].includes(rarity)&&!p.sig) p.sig=BF.sigFor(BF.partElements(d)[slot]);
+    await this.put(p); return p; },
   // legendary & limited parts carry a signature move (older copies get one derived from their element)
   sigOf(p,d){ if(!['legendary','limited'].includes(p.rarity)) return null; return p.sig||BF.sigFor(BF.partElements(d)[p.slot]); },
   randomDesign(system){ let d; for(let k=0;k<6;k++){ d=BF.randomDesign((Math.random()*1e9)|0); if(!system||d.system===system) break; } if(system&&d.system!==system){ d.system=system; d=BF.normalize(d); } return d; },
-  async openPack(kind,source){
-    const out=[];
-    if(kind==='crate'){ const slot=SLOTS[Math.floor(Math.random()*3)]; out.push(await this.create(slot,this.randomDesign(),'legendary',source||'crate')); }
-    else { const sys=Math.random()<0.6?'X':'Burst'; for(const slot of SLOTS) out.push(await this.create(slot,this.randomDesign(sys),roll(ODDS.pack),source||'pack')); }
-    return out;
-  },
-  price(kind){ const base=kind==='mint'?BF.MINT_PRICE:BF.PACKS[kind].price; return Math.round(base*(this.blader().includes('merchant')&&kind!=='mint'?0.9:1)); },
+  async openPack(kind,source){ return BF.Packs.open(BF.Packs.get(kind)?kind:'pack',source); },
+  price(kind){ if(kind==='mint') return BF.MINT_PRICE; return BF.Packs.price(BF.Packs.get(kind)); },
   async spend(n){ const A=this.A(); if(A&&A.profile){ if((A.profile.coins||0)<n) throw new Error('Not enough coins'); await A.update({coins:firebase.firestore.FieldValue.increment(-n)}); return; }
     throw new Error('Sign in (Blader tab) to earn and spend coins'); },
-  async buyPack(kind){ await this.spend(this.price(kind)); return this.openPack(kind); },
+  async buyPack(kind){ return BF.Packs.buy(kind); },
   async mint(slot,d){ await this.spend(this.price('mint')); return this.create(slot,d,roll(ODDS.mint),'mint'); },
   // starter: pick a type, get that Bey's 3 parts + a box of 3 commons
   starterDone(){ return this.list.length>0 || BF.LS.get('bf.starter',false); },

@@ -9,13 +9,13 @@ BF.Admin = {
   tab:'ranks',
   render(root){
     if(!root) return;
-    const tabs=[['ranks','Ranks',A.can('manageRoles')],['players','Players',A.can('grant')||A.can('moderate')],['announce','Announcement',A.can('manageGame')],['ranked','Ranked rules',A.can('manageGame')],['events','Weekly boss',A.can('manageGame')]].filter(t=>t[2]);
+    const tabs=[['ranks','Ranks',A.can('manageRoles')],['players','Players',A.can('grant')||A.can('moderate')],['announce','Announcement',A.can('manageGame')],['ranked','Ranked rules',A.can('manageGame')],['events','Weekly boss',A.can('manageGame')],['packs','Packs & odds',A.can('manageGame')]].filter(t=>t[2]);
     if(!tabs.find(t=>t[0]===this.tab)) this.tab=tabs[0]&&tabs[0][0];
     root.innerHTML=`<h3>${A.isOwner?'Owner panel':'Staff panel'} <span class="cnt gold">${A.isOwner?'OWNER':'STAFF'}</span></h3>
       <div class="seg sm admtabs">${tabs.map(([k,l])=>`<button type="button" class="${this.tab===k?'on':''}" data-t="${k}">${l}</button>`).join('')}</div><div id="admBody"></div>`;
     root.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{ this.tab=b.dataset.t; this.render(root); });
     const body=root.querySelector('#admBody');
-    if(this.tab==='ranks') this.ranks(body); else if(this.tab==='players') this.players(body); else if(this.tab==='announce') this.announce(body); else if(this.tab==='ranked') BF.Ranked.editor(body); else if(this.tab==='events') this.events(body);
+    if(this.tab==='ranks') this.ranks(body); else if(this.tab==='players') this.players(body); else if(this.tab==='announce') this.announce(body); else if(this.tab==='ranked') BF.Ranked.editor(body); else if(this.tab==='events') this.events(body); else if(this.tab==='packs') this.packs(body);
   },
   ranks(el){
     const roles=Object.entries(A.roles).sort((a,b)=>(b[1].order||0)-(a[1].order||0));
@@ -65,6 +65,40 @@ BF.Admin = {
         if(a==='pack'||a==='crate') c.onclick=()=>ref.collection('inbox').add({type:'pack',kind:a,from:A.user.uid,fromName:A.profile.name,ts:FV.serverTimestamp()}).then(()=>BF.App.toast(`Sent ${p.name} a ${a==='crate'?'legendary crate':'booster pack'}`,'good')).catch(err);
         if(a==='ban') c.onclick=()=>ref.update({banned:!p.banned}).then(()=>{ p.banned=!p.banned; c.textContent=p.banned?'Unban':'Ban'; BF.App.toast(p.banned?`${p.name} banned`:`${p.name} unbanned`); }).catch(err);
       }); });
+  },
+  // ---------- Packs & odds: every pack's price, odds, shiny rate, pity and colors (live for all players) ----------
+  packs(el){
+    const K=BF.Packs, all=BF.clone(K.all()), R=['common','rare','epic','legendary'];
+    const row=p=>{ const t=R.reduce((a,r)=>a+(+p.odds[r]||0),0);
+      return `<section class="pkadm" data-id="${p.id}"><div class="pkadm-h"><img src="${BF.PackModel.thumb(p,120)}" alt=""><div><input class="txt sm" data-f="name" value="${esc(p.name)}" maxlength="28"><input class="txt sm" data-f="desc" value="${esc(p.desc)}" maxlength="80"></div>
+        <label class="pchip${p.enabled!==false?' on':''}"><input type="checkbox" data-f="enabled"${p.enabled!==false?' checked':''}>In shop</label></div>
+        <div class="pkadm-g">
+          <label class="rk-f"><span>Price</span><span class="num-wrap"><input class="num" type="number" min="0" data-f="price" value="${p.price}"><span class="unit">coins</span></span></label>
+          <label class="rk-f"><span>Gem price</span><span class="num-wrap"><input class="num" type="number" min="0" data-f="gems" value="${p.gems||0}"><span class="unit">gems</span></span></label>
+          <label class="rk-f"><span>Parts</span><span class="num-wrap"><input class="num" type="number" min="1" max="10" data-f="count" value="${p.count}"></span></label>
+          <label class="rk-f"><span>Shiny</span><span class="num-wrap"><span class="unit">1 in</span><input class="num" type="number" min="1" data-f="shiny" value="${p.shiny}"></span></label>
+          <label class="rk-f"><span>Pity</span><span class="num-wrap"><input class="num" type="number" min="0" data-f="pity" value="${p.pity}"><span class="unit">packs (0 = off)</span></span></label>
+          <label class="rk-f"><span>Colors</span><span class="num-wrap"><input type="color" data-f="c0" value="${p.colors[0]}"><input type="color" data-f="c1" value="${p.colors[1]}"></span></label>
+        </div>
+        <div class="pkadm-odds">${R.map(r=>`<label style="--c:${BF.RARITY[r].color}"><span>${BF.RARITY[r].label}</span><span class="num-wrap"><input class="num" type="number" min="0" max="100" step="0.1" data-odd="${r}" value="${p.odds[r]||0}"><span class="unit">%</span></span></label>`).join('')}<em class="${Math.abs(t-100)<0.01?'ok':'bad'}" data-sum>Total ${+t.toFixed(2)}%</em></div></section>`; };
+    el.innerHTML=`<p class="dim small">Every player sees these prices and odds live, and the odds are shown on each pack. Odds must add up to 100%.</p>
+      <div class="pkadm-list">${Object.values(all).map(row).join('')}</div>
+      <div class="addrow"><button class="btn primary" id="pkSave">Publish packs & odds</button><button class="btn ghost" id="pkReset">Reset all to defaults</button></div>`;
+    el.querySelectorAll('.pkadm').forEach(sec=>{ const p=all[sec.dataset.id];
+      sec.querySelectorAll('[data-f]').forEach(i=>i.oninput=i.onchange=()=>{ const f=i.dataset.f;
+        if(f==='enabled'){ p.enabled=i.checked; i.parentElement.classList.toggle('on',i.checked); }
+        else if(f==='c0'||f==='c1') p.colors[f==='c0'?0:1]=i.value;
+        else if(['price','gems','count','shiny','pity'].includes(f)) p[f]=Math.max(f==='count'||f==='shiny'?1:0,+i.value||0);
+        else p[f]=i.value; });
+      sec.querySelectorAll('[data-odd]').forEach(i=>i.oninput=()=>{ p.odds[i.dataset.odd]=Math.max(0,+i.value||0); const t=R.reduce((a,r)=>a+(+p.odds[r]||0),0); const s=sec.querySelector('[data-sum]'); s.textContent=`Total ${+t.toFixed(2)}%`; s.className=Math.abs(t-100)<0.01?'ok':'bad'; });
+    });
+    const doc=A.db.collection('config').doc('packs');
+    el.querySelector('#pkSave').onclick=()=>{ const bad=Object.values(all).find(p=>Math.abs(R.reduce((a,r)=>a+(+p.odds[r]||0),0)-100)>0.01);
+      if(bad) return BF.App.toast(`${bad.name}: odds must add up to 100%`,'bad');
+      const packs={}; Object.values(all).forEach(p=>{ const {id,...rest}=p; packs[id]=rest; });
+      doc.set({packs,by:A.profile.name,ts:firebase.firestore.FieldValue.serverTimestamp()}).then(()=>BF.App.toast('Packs & odds published','good')).catch(err); };
+    el.querySelector('#pkReset').onclick=e=>{ const b=e.currentTarget; if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='Tap again to reset'; return; }
+      doc.set({packs:{}}).then(()=>{ BF.App.toast('Packs reset to defaults'); this.packs(el); }).catch(err); };
   },
   events(el){
     const Adv=BF.Adventure, cur=Adv._override&&Adv._override.week===Adv.week()?Adv._override:{}, wb=Adv.weekly();

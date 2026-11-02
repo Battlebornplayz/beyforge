@@ -58,7 +58,7 @@ const B = BF.BattleUI = {
   myName(){ const d=this.myDesign(); return BF.naming(d).full; },
   // ---------- setup screen ----------
   async renderSetup(){
-    this.st='setup'; this.hud(false); $('#banner').hidden=true; this.match=null;
+    this.st='setup'; document.body.classList.remove('infight'); this.hud(false); $('#banner').hidden=true; this.match=null;
     if(this.mode==='adventure'){ this.panel.className='bpanel setup adv'; BF.Adventure.panel(this.panel,this); this.previewArena(); return; }
     const opts=await this.options();
     if(!opts.find(o=>o[0]===this.picks.p1) && opts.length) this.picks.p1=opts[0][0];
@@ -230,7 +230,7 @@ const B = BF.BattleUI = {
     step();
   },
   fight(seed){
-    this.st='fight';
+    this.st='fight'; document.body.classList.add('infight');
     const isGuest=this.mode==='online'&&BF.Net.role==='guest';
     this.arena.live=true; this.F.forEach((_,i)=>this.arena.launchFx(i)); this.arena.camFx=null;
     this.showMoveBar(); this._usedSeen=null;
@@ -258,7 +258,7 @@ const B = BF.BattleUI = {
     if(e.k==='click'){ ar.spark(e.x,e.y,14,700,0xffd21f); BF.Sfx && BF.Sfx.click&&BF.Sfx.click(e.n); const bar=$('#bm'+(e.i+1)); if(bar){ bar.parentNode.classList.remove('pop'); void bar.offsetWidth; bar.parentNode.classList.add('pop'); } }
   },
   roundEnd(res,score,fromNet){
-    this.st='roundEnd'; if(score) this.score=score; this.hideMoveBar();
+    this.st='roundEnd'; document.body.classList.remove('infight'); if(score) this.score=score; this.hideMoveBar();
     // moves picked this round go on cooldown for the next one
     if(this.launches) this.lastMoves=[0,1,2].map(i=>(this.launches[i]&&this.launches[i].moves)||[]);
     const pts=this.rules.pts[res.how]||1;

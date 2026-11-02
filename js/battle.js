@@ -323,7 +323,7 @@ BF.Arena = class {
     cam.position.set(0,-need*Math.sin(tilt),need*Math.cos(tilt)); const look=new T.Vector3(0,portrait?-R*0.18:0,0); cam.lookAt(look);
     this.camBase={pos:cam.position.clone(), look}; }
   // ---------- cinematic camera ----------
-  intro(){ if(!this.camBase) return; const R=this.R||190; this.camFx={kind:'intro',t:0,dur:1.9,from:new T.Vector3(R*1.6,-R*0.9,R*0.55)}; }
+  intro(){ if(!this.camBase||document.documentElement.classList.contains('reduce-motion')) return; const R=this.R||190; this.camFx={kind:'intro',t:0,dur:1.9,from:new T.Vector3(R*1.6,-R*0.9,R*0.55)}; }
   focus(x,y,z,dur){ this.camFx={kind:'focus',t:0,dur:dur||1.6,at:new T.Vector3(x,y,z||0)}; }
   camPose(dt){
     const B=this.camBase; if(!B) return null; const f=this.camFx; if(!f) return {pos:B.pos,look:B.look};

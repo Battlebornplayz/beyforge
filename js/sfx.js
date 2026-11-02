@@ -11,6 +11,13 @@ function tone(type,f0,f1,dur,vol){ const c=ac(); if(!c) return; const t=c.curren
 function hiss(dur,freq,vol,q){ const c=ac(); if(!c) return; const t=c.currentTime, n=noise(dur), f=c.createBiquadFilter(), g=c.createGain(); f.type='bandpass'; f.frequency.value=freq; f.Q.value=q||1; env(g,t,0.005,vol,dur); n.connect(f).connect(g).connect(master); n.start(t); }
 
 BF.Sfx = {
+  // punchy menu sounds
+  ui(kind){ if(BF.Settings&&BF.Settings.get('uiSounds')===false) return;
+    if(kind==='click'){ tone('square',1400,900,0.035,0.05); hiss(0.03,5000,0.04,2); }
+    else if(kind==='tab'){ hiss(0.16,1800,0.07,0.8); tone('sine',500,900,0.12,0.035); }
+    else if(kind==='coin'){ tone('square',1568,1568,0.06,0.05); setTimeout(()=>tone('square',2093,2093,0.12,0.05),60); }
+    else if(kind==='open'){ hiss(0.2,2600,0.06,1.2); tone('triangle',300,700,0.18,0.05); }
+    else if(kind==='close'){ tone('triangle',600,300,0.12,0.04); } },
   get muted(){ return muted(); },
   toggle(){ BF.LS.set('bf.muted',!muted()); if(muted()&&revGain){ this.rev(false); } return muted(); },
   beep(go){ tone('square',go?880:520,go?1320:520,go?0.35:0.12,0.18); },

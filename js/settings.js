@@ -8,7 +8,7 @@ const DEFAULTS = {
   mode:'easy', preview:'paint', printChecks:true, autoSpin:true,
   roundLength:'normal', roundCustom:1, format:'official', customTarget:5, customPoints:'official',
   cosmetics:true, bloom:true, trails:true, particles:true, shake:true, quality:'high', shadows:true,
-  sound:true, volume:0.6, moves:true, cpuLevel:'normal',
+  sound:true, volume:0.6, uiSounds:true, theme:'hybrid', accent:'hybrid', textSize:'m', density:'balanced', reduceMotion:false, colorblind:false, highContrast:false, idleFx:true, moves:true, cpuLevel:'normal',
   tour:true, filament:[
     {name:'Black PLA', color:'#16171f', material:'PLA'}, {name:'White PLA', color:'#f2f4f8', material:'PLA'},
     {name:'Red PLA', color:'#e8262f', material:'PLA'}, {name:'Blue PETG', color:'#1f8bff', material:'PETG'}],
@@ -51,6 +51,19 @@ BF.Settings = {
     const tog=(k,label,hint)=>`<div class="srow"><div><b>${label}</b>${hint?`<span>${hint}</span>`:''}</div><button type="button" class="tog${v[k]?' on':''}" data-tog="${k}" aria-pressed="${!!v[k]}"><i></i></button></div>`;
     const sel=(k,label,opts,hint)=>`<div class="srow"><div><b>${label}</b>${hint?`<span>${hint}</span>`:''}</div><select data-sel="${k}">${Object.entries(opts).map(([a,b])=>`<option value="${a}"${String(v[k])===a?' selected':''}>${esc(typeof b==='object'?b.label:b)}</option>`).join('')}</select></div>`;
     body.innerHTML=`
+      <section><h4>Look & feel</h4>
+        ${sel('theme','Theme',BF.UI6?BF.UI6.themeOpts():{hybrid:'Hybrid'},'Unlock more themes in the Shop.')}
+        <div class="srow"><div><b>Accent color</b><span>Colors buttons, glow and highlights.</span></div><div class="accents">${BF.UI6?BF.UI6.accentChips(v.accent):''}</div></div>
+        ${sel('textSize','Text size',{s:'Small',m:'Normal',l:'Large',xl:'Extra large'})}
+        ${sel('density','Layout density',{compact:'Compact — more on screen',balanced:'Balanced',big:'Big — thumb friendly'})}
+        ${tog('idleFx','Menu particles & idle motion','Floating sparks and shimmering cards.')}
+        ${tog('uiSounds','Menu sounds','Clicks, whooshes and coin dings.')}
+      </section>
+      <section><h4>Accessibility</h4>
+        ${tog('reduceMotion','Reduce motion','Turns off big animations, transitions and camera moves.')}
+        ${tog('colorblind','Colorblind mode','Adds icons and patterns so nothing relies on color alone.')}
+        ${tog('highContrast','High contrast','Stronger borders and brighter text.')}
+      </section>
       <section><h4>Forge</h4>
         ${sel('mode','Editor mode',{easy:'Easy — big simple choices',pro:'Pro — every control'})}
         ${sel('preview','3D preview',{paint:'Full paint & effects',print:'Print view (your filament colors)'},'Print view shows what your printer can actually make.')}
@@ -86,6 +99,7 @@ BF.Settings = {
         <div class="srow"><div><b>Guided tour</b><span>Walk through the app again.</span></div><button type="button" class="btn" data-tour>Start tour</button></div>
         <div class="srow"><div><b>Reset settings</b></div><button type="button" class="btn ghost" data-reset>Reset</button></div>
       </section>`;
+    body.querySelectorAll('[data-accent]').forEach(b=>b.onclick=()=>{ this.set('accent',b.dataset.accent); this.render(); });
     body.querySelectorAll('[data-tog]').forEach(b=>b.onclick=()=>{ this.set(b.dataset.tog,!v[b.dataset.tog]); this.render(); });
     body.querySelectorAll('[data-sel]').forEach(s=>s.onchange=()=>{ this.set(s.dataset.sel,s.value); this.render(); });
     body.querySelectorAll('[data-range]').forEach(r=>r.oninput=()=>{ this.set(r.dataset.range,+r.value); if(r.dataset.range==='roundCustom') r.closest('.srow').querySelector('span').textContent=(+r.value).toFixed(2)+'× normal'; });
