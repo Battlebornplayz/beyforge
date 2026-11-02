@@ -1,5 +1,9 @@
 # BeyForge update log
 
+## V6.8.1 — Pack fix
+- **Fixed packs failing for signed-in players:** many packs and part drops stopped with an "invalid data" error instead of giving you your parts.
+- **Failed packs can't cost you anymore:** if a pack ever fails to open, your coins are refunded and your free pack timer isn't used up.
+
 ## V6.8 — Beydex
 - **New Beydex in the Parts tab:** switch between My parts and Beydex to see all 158 parts.
 - **4 layouts, your pick:**

@@ -69,8 +69,8 @@ const FreePack=BF.FreePack={
   hourglasses(){ const p=prof(); return (p&&p.hourglasses)||0; },
   async save(t){ const a=A(); if(a&&a.profile) await a.update({'freePack.t':t}); else BF.LS.set('bf.freePackT',t); },
   async claim(){ if(!this.cfg().on) throw new Error('Free packs are off right now'); if(this.avail()<1) throw new Error('Not ready yet');
-    const per=this.period(), bank=this.cfg().bank||2, t0=Math.max(this.anchor(),Date.now()-bank*per); await this.save(t0+per);
-    const made=await BF.Packs.open(BF.Packs.get(this.cfg().pack)?this.cfg().pack:'pack','free'); BF.Stats&&BF.Stats.add('freepack');
+    const per=this.period(), bank=this.cfg().bank||2, t0=Math.max(this.anchor(),Date.now()-bank*per);
+    const made=await BF.Packs.open(BF.Packs.get(this.cfg().pack)?this.cfg().pack:'pack','free'); await this.save(t0+per); BF.Stats&&BF.Stats.add('freepack');
     Notify.ask(); this.schedule(); return made; },
   async useHourglass(){ const a=A(); if(!(a&&a.profile)) throw new Error('Sign in to use hourglasses'); if(this.hourglasses()<1) throw new Error('No hourglasses — earn them from the streak, missions and Spin Drops');
     await a.update({hourglasses:FV().increment(-1),'freePack.t':this.anchor()-(this.cfg().hourglassMin||60)*60000}); sfx('ui','coin'); setTimeout(()=>this.schedule(),500); },

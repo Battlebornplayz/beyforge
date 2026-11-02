@@ -56,7 +56,8 @@ const K = BF.Packs = {
     pity[id]=gotLeg?0:count+1; await this.setPity(pity); BF.Missions&&BF.Missions.bump('pack');
     return out;
   },
-  async buy(id){ const p=this.get(id); await BF.Parts.spend(this.price(p)); return this.open(id); }
+  async buy(id){ const p=this.get(id), price=this.price(p); await BF.Parts.spend(price);
+    try{ return await this.open(id); }catch(e){ console.error('pack open failed',e); const A=BF.Account; if(A&&A.profile) await A.update({coins:firebase.firestore.FieldValue.increment(price)}).catch(()=>{}); throw new Error('That pack couldn’t open, so your coins were refunded. Try again.'); } }
 };
 BF.Account&&BF.Account.on(()=>K.listen());
 

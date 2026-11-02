@@ -75,6 +75,7 @@ The pane can't open a server in the cloud container. Push a test branch and open
 4. **Studio wave 2 items:** events, redeem codes, mass gifts, news/pop-ups, balance sliders + simulator, testing tools, uploads, feedback, planning board, anti-cheat, alerts.
 
 ## Testing approach
+- **Test saves against real Firestore validation.** Stubbing `cloud()` to false hides save errors. Use `firebase.firestore().batch().set(ref,data)`: it validates right away and writes nothing, as long as you never commit. V6.7 shipped a live pack bug because of this gap.
 - Headless Playwright with swiftshader, from scripts in the scratchpad.
 - Fake the profile by stubbing `BF.Account.profile`/`update` and `firebase.firestore.FieldValue` (see the e1.js pattern).
 - Studio: `studio/index.html?demo` runs on in-memory fake Firestore data.

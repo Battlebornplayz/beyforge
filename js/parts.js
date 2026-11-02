@@ -110,12 +110,14 @@ const P = BF.Parts = {
   },
   async migrate(){ // device parts move into the account once
     const A=this.A(), key='bf.partsMigrated.'+A.user.uid, local=BF.LS.get('bf.parts',[]); if(BF.LS.get(key,false)||!local.length) return;
-    for(const p of local){ const {id,...rest}=p; await this.col().doc(id).set(rest).catch(()=>{}); }
+    for(const p of local){ const {id,...rest}=p; await this.col().doc(id).set(this.clean(rest)).catch(()=>{}); }
     const ld=BF.LS.get('bf.decks',[]); if(ld.length) await A.update({decks:[...(A.profile.decks||[]),...ld].slice(0,24)}).catch(()=>{});
     BF.LS.set(key,true); BF.LS.set('bf.parts',[]); BF.LS.set('bf.decks',[]);
   },
-  async put(p){ if(this.cloud()){ const {id,...rest}=p; await this.col().doc(id).set(rest); return; } const i=this.list.findIndex(x=>x.id===p.id); if(i>=0) this.list[i]=p; else this.list.push(p); BF.LS.set('bf.parts',this.list); this.emit(); },
-  async patch(id,data){ if(this.cloud()) return this.col().doc(id).update(data); const p=this.get(id); if(!p) return; Object.assign(p,data); BF.LS.set('bf.parts',this.list); this.emit(); },
+  // Firestore rejects undefined anywhere in a document, and part data can legitimately have empty fields (paint.metal, layer...)
+  clean(o){ return JSON.parse(JSON.stringify(o)); },
+  async put(p){ if(this.cloud()){ const {id,...rest}=p; await this.col().doc(id).set(this.clean(rest)); return; } const i=this.list.findIndex(x=>x.id===p.id); if(i>=0) this.list[i]=p; else this.list.push(p); BF.LS.set('bf.parts',this.list); this.emit(); },
+  async patch(id,data){ if(this.cloud()) return this.col().doc(id).update(this.clean(data)); const p=this.get(id); if(!p) return; Object.assign(p,data); BF.LS.set('bf.parts',this.list); this.emit(); },
   async remove(id){ if(this.cloud()) return this.col().doc(id).delete(); this.list=this.list.filter(p=>p.id!==id); BF.LS.set('bf.parts',this.list); this.decks=this.decks.filter(k=>!k.parts.includes(id)); BF.LS.set('bf.decks',this.decks); this.emit(); },
   async saveDecks(){ if(this.cloud()) return this.A().update({decks:this.decks}); BF.LS.set('bf.decks',this.decks); this.emit(); },
   get(id){ return this.list.find(p=>p.id===id); },
