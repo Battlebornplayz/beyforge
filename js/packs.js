@@ -50,7 +50,7 @@ const K = BF.Packs = {
       const part=await P.create(slot,d,rar,source||id,{shiny:Math.random()<1/(p.shiny||64)});
       if(rar==='legendary') gotLeg=true; out.push(part);
     }
-    pity[id]=gotLeg?0:count+1; await this.setPity(pity);
+    pity[id]=gotLeg?0:count+1; await this.setPity(pity); BF.Missions&&BF.Missions.bump('pack');
     return out;
   },
   async buy(id){ const p=this.get(id); await BF.Parts.spend(this.price(p)); return this.open(id); }

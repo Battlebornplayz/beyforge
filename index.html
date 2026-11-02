@@ -14,9 +14,15 @@
 <link rel="stylesheet" href="css/theme6.css">
 </head>
 <body>
+<div id="splash" aria-hidden="true"><script>window.__splashT=performance.now();</script>
+  <div class="sp-rail"></div><div class="sp-cord"><i></i></div>
+  <div class="sp-bey"><svg viewBox="0 0 24 24"><path d="M18.00 12.00 L18.99 12.37 L19.96 12.84 L20.89 13.41 L21.78 14.08 L21.53 14.55 L21.25 15.00 L20.95 15.44 L20.64 15.84 L20.30 16.23 L19.95 16.59 L19.59 16.93 L19.22 17.24 L18.83 17.53 L18.44 17.80 L18.04 18.04 L17.63 18.25 L17.21 18.44 L16.80 18.60 L16.38 18.74 L15.96 18.86 L15.54 18.95 L15.12 19.02 L14.71 19.06 L14.30 19.09 L13.90 19.09 L13.50 19.07 L13.11 19.03 L12.73 18.97 L12.36 18.90 L12.00 18.81 L11.65 18.70 L11.31 18.57 L10.98 18.44 L10.66 18.29 L10.36 18.12 L10.07 17.95 L9.79 17.77 L9.52 17.58 L9.26 17.39 L9.00 17.20 L8.19 17.87 L7.30 18.47 L6.34 18.99 L5.31 19.43 L5.03 18.97 L4.77 18.51 L4.55 18.03 L4.35 17.56 L4.19 17.07 L4.05 16.59 L3.93 16.11 L3.85 15.63 L3.79 15.15 L3.76 14.68 L3.76 14.21 L3.77 13.75 L3.82 13.30 L3.88 12.85 L3.97 12.42 L4.08 12.00 L4.21 11.59 L4.36 11.20 L4.53 10.82 L4.71 10.45 L4.91 10.10 L5.13 9.77 L5.35 9.45 L5.59 9.15 L5.84 8.86 L6.11 8.60 L6.37 8.35 L6.65 8.11 L6.94 7.90 L7.22 7.70 L7.52 7.52 L7.81 7.35 L8.11 7.20 L8.41 7.06 L8.71 6.93 L9.00 6.80 L8.82 5.76 L8.75 4.69 L8.77 3.60 L8.91 2.49 L9.45 2.47 L9.98 2.49 L10.50 2.53 L11.01 2.60 L11.51 2.69 L12.00 2.82 L12.47 2.96 L12.93 3.13 L13.38 3.32 L13.80 3.53 L14.21 3.76 L14.60 4.00 L14.97 4.27 L15.32 4.54 L15.65 4.84 L15.96 5.14 L16.25 5.46 L16.52 5.79 L16.76 6.12 L16.99 6.46 L17.19 6.81 L17.37 7.16 L17.53 7.52 L17.67 7.88 L17.79 8.24 L17.89 8.60 L17.98 8.96 L18.04 9.31 L18.08 9.66 L18.11 10.01 L18.12 10.36 L18.12 10.70 L18.10 11.03 L18.07 11.36 L18.04 11.68 L18.00 12.00Z" fill="#fff"/><circle cx="12" cy="12" r="3.3" fill="#05040c" stroke="#ffe600" stroke-width=".8"/></svg></div>
+  <div class="sp-logo"><span class="b1">BEY</span><b>FORGE</b></div><div class="sp-sub">LET IT RIP</div>
+</div>
 <header class="topbar">
-  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span><span class="b1">BEY</span><b>FORGE</b></span><em>V6.0</em></div>
+  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span><span class="b1">BEY</span><b>FORGE</b></span><em>V6.1</em></div>
   <nav class="tabs" id="tabs">
+    <button data-tab="home">Home</button>
     <button data-tab="forge" class="on">Forge</button>
     <button data-tab="battle">Battle</button>
     <button data-tab="library">Library</button>
@@ -30,6 +36,8 @@
   <button id="muteBtn" class="icon-btn" title="Sound on/off" aria-label="Sound on/off"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/><path class="x" d="M16 9l6 6M22 9l-6 6"/></svg></button>
   <button id="folderBtn" class="folder-btn"><i></i>Connect O:\BeyForge</button>
 </header>
+
+<main id="view-home" class="view home" hidden><div id="homeRoot"></div></main>
 
 <main id="view-forge" class="view forge">
   <aside class="panel left" id="controls" aria-label="Design controls"></aside>
@@ -172,6 +180,7 @@
 <script src="js/packs.js"></script>
 <script src="js/parts-ui.js"></script>
 <script src="js/adventure.js"></script>
+<script src="js/home.js"></script>
 <script src="js/tour.js"></script>
 <script src="js/app.js"></script>
 <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>

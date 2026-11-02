@@ -102,7 +102,7 @@ const Adv = BF.Adventure = {
     if(!won){ return adv.kind==='tower'?'<div class="dim">The tower waits. Train up and try again.</div>':''; }
     if(adv.kind==='tower'){ const n=adv.id; if(n>d.tower){ d.tower=n; await this.save(d); lines.push(`<div class="lvup">🗼 Floor ${n} cleared!</div>`); await coins(30+10*n);
         if(n%5===0){ const made=await BF.Parts.openPack(n===30?'crate':'pack','tower'); made.forEach(p=>lines.push(partLine(p))); }
-        BF.Ach.event('tower',n); } else lines.push('<div class="dim">Already cleared — climb higher for rewards.</div>'); }
+        BF.Ach.event('tower',n); BF.Missions&&BF.Missions.bump('tower'); } else lines.push('<div class="dim">Already cleared — climb higher for rewards.</div>'); }
     if(adv.kind==='gym'){ if(!d.badges.includes(adv.id)){ d.badges.push(adv.id); await this.save(d); lines.push(`<div class="lvup">🏅 ${BF.ELEMENTS[adv.id].label} Badge earned!</div>`); await coins(250);
         const slot=BF.PART_SLOTS[Math.floor(Math.random()*3)]; const p=await BF.Parts.create(slot,designFor((Math.random()*1e9)|0,adv.id),'epic','gym'); lines.push(partLine(p)); BF.Ach.event('badges',d.badges.length); }
       else lines.push('<div class="dim">You already have this badge.</div>'); }

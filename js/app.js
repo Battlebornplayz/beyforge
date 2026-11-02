@@ -29,7 +29,7 @@ const App = BF.App = {
     // each start-up step runs on its own so one failure (e.g. offline Firebase) can't block the rest
     const safe=(n,f)=>{ try{ f(); }catch(e){ console.warn('init '+n,e); } };
     safe('ui6',()=>BF.UI6.init()); safe('social',()=>BF.Social.init()); safe('account',()=>BF.Account.init()); safe('native',()=>BF.Native.init());
-    safe('card',()=>BF.Card.bind()); safe('parts',()=>BF.Parts.init()); safe('library',()=>this.bindLibrary()); safe('share',()=>BF.Share.checkHash()); safe('tour',()=>BF.Tour.auto());
+    safe('card',()=>BF.Card.bind()); safe('parts',()=>BF.Parts.init()); safe('library',()=>this.bindLibrary()); safe('share',()=>BF.Share.checkHash()); safe('tour',()=>BF.Tour.auto()); safe('home',()=>BF.Home.init()); safe('splash',()=>BF.Splash.done());
     $('#scExit').addEventListener('click',()=>BF.Showcase.toggle()); $('#scCard').addEventListener('click',()=>BF.Card.open(BF.clone(this.d)));
     $('#annX').addEventListener('click',()=>{ $('#announce').hidden=true; BF.LS.set('bf.announceSeen',this._ann||''); });
     this.logo();
@@ -97,7 +97,7 @@ const App = BF.App = {
   },
   async save(){
     const meta=BF.naming(this.d,this.an&&this.an.type); const thumb=this.viewer.snapshot(256);
-    try{ await BF.Store.saveDesign(this.d,{name:meta.name,code:meta.code,full:meta.full,type:meta.type,system:this.d.system,mass:+this.mp.mass.toFixed(1)},thumb);
+    try{ BF.Missions&&BF.Missions.bump('save'); await BF.Store.saveDesign(this.d,{name:meta.name,code:meta.code,full:meta.full,type:meta.type,system:this.d.system,mass:+this.mp.mass.toFixed(1)},thumb);
       BF.LS.set('bf.current',this.d);
       this.toast(BF.Store.status==='connected'?`Saved to ${BF.Store.dir.name}\\designs`:'Saved in this browser — connect your folder to save to O:','good');
     }catch(e){ console.error(e); this.toast('Save failed: '+e.message,'bad'); }
@@ -145,6 +145,7 @@ const App = BF.App = {
       document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
       document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!=='view-'+b.dataset.tab);
       if(b.dataset.tab==='parts') BF.PartsUI.render();
+      if(b.dataset.tab==='home') BF.Home.render();
       if(b.dataset.tab==='library') this.libView==='gallery'?BF.Gallery.render($('#galGrid')):this.renderLibrary();
       if(b.dataset.tab==='forge') this.viewer.resize();
       if(b.dataset.tab==='profile') BF.Social.render();

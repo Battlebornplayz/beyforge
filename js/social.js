@@ -6,7 +6,8 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const FV=()=>firebase.firestore.FieldValue;
 const ago=ts=>{ if(!ts) return 'never'; const t=ts.toDate?ts.toDate():new Date(ts); const s=(Date.now()-t)/1000; if(s<120) return 'online'; if(s<3600) return Math.round(s/60)+'m ago'; if(s<86400) return Math.round(s/3600)+'h ago'; return Math.round(s/86400)+'d ago'; };
 const online=ts=>ago(ts)==='online';
-const avatar=(p,size)=>p&&p.avatar?`<img class="av" style="--s:${size||40}px" src="${p.avatar}" alt="">`:`<span class="av ph" style="--s:${size||40}px">${esc(((p&&p.name)||'?')[0].toUpperCase())}</span>`;
+const avatar0=(p,size)=>p&&p.avatar?`<img class="av" style="--s:${size||40}px" src="${p.avatar}" alt="">`:`<span class="av ph" style="--s:${size||40}px">${esc(((p&&p.name)||'?')[0].toUpperCase())}</span>`;
+const avatar=(p,size)=>`<span class="avf fr-${(p&&p.card&&p.card.frame)||'ring'}" style="--s:${size||40}px">${avatar0(p,size)}</span>`;
 const PERMS={grant:'Give coins, XP, unlocks & ranks',moderate:'Moderate chat, gallery, bans',manageRoles:'Create & edit ranks',manageGame:'Announcements & game settings'};
 
 const S = BF.Social = {
@@ -56,15 +57,17 @@ const S = BF.Social = {
     root.innerHTML=`
       <div class="pgrid">
         <section class="pcol">
-          <div class="profcard">
+          <div class="profcard ${BF.cardClasses(p)}">
             <div class="pc-top"><label class="avwrap" title="Change picture">${avatar(p,84)}<input type="file" accept="image/*" id="avIn" hidden><span class="avedit">Edit</span></label>
               <div class="pc-id"><div class="pc-name">${esc(p.name)}</div>${rank?`<span class="rankbadge" style="--rc:${rank.color}">${esc(rank.name)}</span>`:''}
-                <select id="titleSel" aria-label="Title">${BF.titlesFor(lvl).concat(p.unlocks&&p.unlocks.includes('*')?['Champion','Owner of the Stadium']:[]).map(t=>`<option${t===p.title?' selected':''}>${esc(t)}</option>`).join('')}</select></div></div>
+                <select id="titleSel" aria-label="Title">${BF.titlesFor(lvl).concat(BF.earnedTitles?BF.earnedTitles():[]).concat(p.unlocks&&p.unlocks.includes('*')?['Champion','Owner of the Stadium']:[]).map(t=>`<option${t===p.title?' selected':''}>${esc(t)}</option>`).join('')}</select></div></div>
             <div class="lvlrow"><b>LV ${lvl}</b><div class="xpbar"><i style="width:${Math.min(100,(xp-x0)/(x1-x0)*100)}%"></i></div><span class="mono">${xp-x0}/${x1-x0} XP</span></div>
             <div class="pstats">
               <div><b>${st.wins||0}</b><span>Wins</span></div><div><b>${st.losses||0}</b><span>Losses</span></div>
               <div><b>${p.rating||1000}</b><span>Ranked SR</span></div><div><b class="coin">${p.coins||0}</b><span>Coins</span></div></div>
             <div class="fins">${['xtreme','over','burst','spin'].map(k=>`<span>${k} <b>${(st.finishes&&st.finishes[k])||0}</b></span>`).join('')}</div>
+            <div class="fl">Banner<div class="cpick">${Object.entries(BF.BANNERS).map(([k,b])=>{ const own=BF.cardOwns('banner',k); return `<button type="button" class="bnmini bn-${k}${((p.card||{}).banner||'stadium')===k?' on':''}${own?'':' locked'}" data-bn="${k}" title="${esc(b.label)}${own?'':b.ach?' — earn it from an achievement':' — '+b.price+' coins'}"></button>`; }).join('')}</div></div>
+            <div class="fl">Avatar frame<div class="cpick">${Object.entries(BF.FRAMES).map(([k,f])=>{ const own=BF.cardOwns('frame',k); return `<button type="button" class="frmini fr-${k}${((p.card||{}).frame||'ring')===k?' on':''}${own?'':' locked'}" data-fr="${k}" title="${esc(f.label)}${own?'':f.ach?' — earn it from an achievement':' — '+f.price+' coins'}"><i></i></button>`; }).join('')}</div></div>
             <label class="fl">Showcase Bey<select id="showSel"><option value="">None</option></select></label>
             ${p.showcase&&p.showcase.thumb?`<img class="showimg" src="${p.showcase.thumb}" alt="">`:''}
             <div class="pc-acts"><button class="btn ghost" id="signOut">Sign out</button></div>
@@ -83,6 +86,9 @@ const S = BF.Social = {
       ${A.isStaff()?`<div class="box admin" id="adminBox"></div>`:''}`;
     $('#avIn').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ await A.setAvatar(f); BF.App.toast('Picture updated','good'); }catch(err){ BF.App.toast('Couldn’t use that image','bad'); } };
     $('#titleSel').onchange=e=>A.update({title:e.target.value});
+    const setCard=(k,v)=>A.update({card:Object.assign({},p.card||{},{[k]:v})});
+    root.querySelectorAll('[data-bn]').forEach(b=>b.onclick=()=>{ const k=b.dataset.bn, it=BF.BANNERS[k]; if(BF.cardOwns('banner',k)) return setCard('banner',k); if(it.ach) return BF.App.toast('Earn this banner from an achievement','bad'); BF.Shop.require('banner',k,()=>setCard('banner',k)); });
+    root.querySelectorAll('[data-fr]').forEach(b=>b.onclick=()=>{ const k=b.dataset.fr, it=BF.FRAMES[k]; if(BF.cardOwns('frame',k)) return setCard('frame',k); if(it.ach) return BF.App.toast('Earn this frame from an achievement','bad'); BF.Shop.require('frame',k,()=>setCard('frame',k)); });
     $('#signOut').onclick=()=>A.signOut();
     $('#addFriend').onsubmit=e=>{ e.preventDefault(); this.addFriend($('#addName').value); };
     BF.Store.loadLibrary().then(recs=>{ const s=$('#showSel'); if(!s) return; recs.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.meta.full; if(p.showcase&&p.showcase.id===r.id) o.selected=true; s.appendChild(o); });

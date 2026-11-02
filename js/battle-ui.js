@@ -250,7 +250,7 @@ const B = BF.BattleUI = {
     if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
     if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); this.flash('rgba(255,46,136,.45)'); }
     if(e.k==='dash'){ BF.Sfx && BF.Sfx.dash(); }
-    if(e.k==='move') this.moveCall(e);
+    if(e.k==='move'){ this.moveCall(e); if(BF.Missions&&this.myPlayers().includes(e.i)){ BF.Missions.bump('move'); if(e.sig) BF.Missions.bump('sig'); } }
     if(e.k==='status'){ const S=BF.STATUS[e.s]; if(S) this.pop(e.i,S.label.toUpperCase()+'!',S.color); BF.Sfx && BF.Sfx.status && BF.Sfx.status(); }
     if(e.k==='lean') ar.marker && ar.marker(e.x,e.y,e.i===0?0x2ef2ff:0xff2e88);
     if(e.k==='hit' && e.eff==='super') this.pop(null,'Super effective!','#ffd21f');
@@ -261,6 +261,7 @@ const B = BF.BattleUI = {
     this.st='roundEnd'; document.body.classList.remove('infight'); if(score) this.score=score; this.hideMoveBar();
     // moves picked this round go on cooldown for the next one
     if(this.launches) this.lastMoves=[0,1,2].map(i=>(this.launches[i]&&this.launches[i].moves)||[]);
+    if(BF.Missions){ BF.Missions.bump('round'); if(res.how==='burst'&&this.mode!=='local'&&res.winner===(this.raid?0:this.me)) BF.Missions.bump('burstwin'); }
     const pts=this.rules.pts[res.how]||1;
     if(!fromNet){ this.score[res.winner]+=pts; if(this.mode==='online') BF.Net.send({t:'round',res,score:this.score}); }
     this.arena.live=false;
@@ -278,6 +279,7 @@ const B = BF.BattleUI = {
     const myTeam=this.raid?0:this.me;
     let line='';
     const adv=this.match.adventure; if(adv) setTimeout(()=>BF.Adventure.done(adv,win===myTeam,this).then(lines=>{ const box=document.querySelector('.bpanel.result .advres'); if(box&&lines) box.innerHTML=lines; }).catch(e=>console.warn(e)),200);
+    if(this.mode!=='local'&&win===myTeam&&BF.Missions){ BF.Missions.bump('win'); if(this.mode==='online') BF.Missions.bump('onlinewin'); }
     if(this.mode!=='local'){ const won=win===myTeam; const rec=BF.Records.add(won,this.lastHow||'spin',this.F[this.me].name,this.mode==='online',!!(this.match&&this.match.ranked)); line=`<div class="record">${won?'Victory':'Defeat'} · record ${rec.wins}–${rec.losses}</div>`; BF.Ach && BF.Ach.check({won,how:this.lastHow,score:this.score,me:this.me,mode:this.mode,f:this.F[this.me]}); }
     const myD=this.me===1?this.match.d2:this.match.d1;
     if(this.mode!=='local' && BF.Parts && myD && myD.prog && myD.prog.copyIds) setTimeout(()=>BF.Parts.reward(myD,{won:win===myTeam,rounds:this.round,mode:this.mode,cpuLevel:this.cpuLv()}).then(r=>{
@@ -319,7 +321,7 @@ const B = BF.BattleUI = {
     if(this.mode==='online'&&BF.Net.role==='guest'){ BF.Net.send({t:'in',k:'move',s}); btn.classList.add('used'); return; }
     if(this.sim) this.sim.useMove(p,s);
   },
-  lean(p,x,y){ if(this.st!=='fight') return;
+  lean(p,x,y){ if(this.st!=='fight') return; BF.Missions&&BF.Missions.bump('lean');
     if(this.mode==='online'&&BF.Net.role==='guest'){ BF.Net.send({t:'in',k:'lean',x,y}); this.arena.marker&&this.arena.marker(x,y,0xff2e88); return; }
     if(this.sim) this.sim.lean(p,x,y); },
   bindControls(){
