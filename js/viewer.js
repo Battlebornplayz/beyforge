@@ -83,6 +83,14 @@ BF.Viewer = class {
     this.state={spin:true, explode:0, explodeT:0, section:false, stadium:false, speed:1};
     this.partGroups=[]; this.stadium=null; this.clock=new T.Clock(); this.spinAngle=0;
     const ro=new ResizeObserver(()=>this.resize()); ro.observe(el); this.resize();
+    // tap a part on the model to edit it
+    let down=null; const ray=new T.Raycaster();
+    r.domElement.addEventListener('pointerdown',e=>{ down=[e.clientX,e.clientY]; });
+    r.domElement.addEventListener('pointerup',e=>{ if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6||!this.onPick) return; const b=r.domElement.getBoundingClientRect();
+      ray.setFromCamera(new T.Vector2((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1),this.camera);
+      const hit=ray.intersectObjects(this.rig.children,true)[0]; if(!hit) return; let o=hit.object; const role=o.userData.role; while(o&&!o.userData.id) o=o.parent; if(o) this.onPick(o.userData.id,role); });
+    this.applyQuality=()=>{ const q=BF.Settings?BF.Settings.get('quality'):'high'; r.setPixelRatio(Math.min(q==='high'?2:q==='medium'?1.25:0.8,window.devicePixelRatio||1)); r.shadowMap.enabled=!BF.Settings||BF.Settings.get('shadows'); this.resize(); };
+    if(BF.Settings){ this.state.spin=BF.Settings.get('autoSpin'); this.applyQuality(); }
     const loop=()=>{ requestAnimationFrame(loop); this.tick(); }; loop();
   }
   resize(){ const w=this.el.clientWidth||1, h=this.el.clientHeight||1; this.renderer.setSize(w,h,false); this.camera.aspect=w/h; this.camera.updateProjectionMatrix(); }
@@ -96,9 +104,7 @@ BF.Viewer = class {
     asm.parts.forEach((part,ix)=>{
       const g=new T.Group(); g.userData={z0:part.z0, ix, id:part.id};
       part.bodies.forEach(b=>{
-        const pm=BF.partMaterial(d,part,b.role);
-        const mesh=new T.Mesh(b.geo, BF.makeMaterial(pm.mat,pm.color,{clip,double:this.state.section}));
-        if(b.role==='accent'){ mesh.material.emissive=new T.Color(pm.color); mesh.material.emissiveIntensity=0.25; }
+        const mesh=new T.Mesh(b.geo, BF.materialFor(d,part,b,{clip,double:this.state.section}));
         mesh.castShadow=true; mesh.receiveShadow=true; mesh.userData.role=b.role; g.add(mesh);
       });
       (part.inserts||[]).forEach(it=>{

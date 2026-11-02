@@ -14,13 +14,14 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span>BEY<b>FORGE</b></span><em>V3</em></div>
+  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span>BEY<b>FORGE</b></span><em>V4.1</em></div>
   <nav class="tabs" id="tabs">
     <button data-tab="forge" class="on">Forge</button>
     <button data-tab="battle">Battle</button>
     <button data-tab="library">Library</button>
   </nav>
   <div class="spacer"></div>
+  <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   <button id="muteBtn" class="icon-btn" title="Sound on/off" aria-label="Sound on/off"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/><path class="x" d="M16 9l6 6M22 9l-6 6"/></svg></button>
   <button id="folderBtn" class="folder-btn"><i></i>Connect O:\BeyForge</button>
 </header>
@@ -68,6 +69,20 @@
     <div class="modal-acts"><button class="btn primary" id="copyPrompt">Copy prompt</button><button class="btn" id="savePrompt">Save as .txt</button><button class="btn ghost" id="closePrompt">Close</button></div>
   </div>
 </div>
+<div class="modal" id="settingsModal" hidden>
+  <div class="modal-card settings-card" role="dialog" aria-labelledby="setTitle">
+    <div class="modal-head"><h3 id="setTitle">Settings</h3><button class="icon-x big" data-close="settingsModal" aria-label="Close settings">×</button></div>
+    <div id="settingsBody" class="settings-body"></div>
+  </div>
+</div>
+<div class="modal" id="drawModal" hidden>
+  <div class="modal-card draw-card" role="dialog" aria-labelledby="drawTitle">
+    <div class="modal-head"><h3 id="drawTitle">Draw on your Bey</h3><span class="dim small">Top view — paint lands right where you draw</span></div>
+    <div class="drawstack"><canvas id="drawBg" width="1024" height="1024"></canvas><canvas id="drawCanvas" width="1024" height="1024"></canvas></div>
+    <div class="drawtools"><input type="color" id="drawColor" value="#ff2e88" aria-label="Brush color"><label class="dim small">Brush <input type="range" id="drawSize" min="4" max="90" value="22"></label><button class="btn" id="drawErase" type="button">Eraser</button><button class="btn ghost" id="drawClear" type="button">Clear</button></div>
+    <div class="modal-acts"><button class="btn primary" id="drawDone" type="button">Done</button><button class="btn ghost" id="drawCancel" type="button">Cancel</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status"></div>
 
 <script src="lib/three.min.js"></script>
@@ -75,17 +90,21 @@
 <script src="lib/jszip.min.js"></script>
 <script src="lib/font.js"></script>
 <script src="js/data.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/data4.js"></script>
 <script src="js/geometry.js"></script>
 <script src="js/viewer.js"></script>
 <script src="js/physics.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/paint.js"></script>
 <script src="js/export.js"></script>
 <script src="lib/peerjs.min.js"></script>
 <script src="js/battle.js"></script>
 <script src="js/net.js"></script>
 <script src="js/sfx.js"></script>
 <script src="js/battle-ui.js"></script>
-<script src="js/storage.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/ui4.js"></script>
 <script src="js/app.js"></script>
 <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
 </body>

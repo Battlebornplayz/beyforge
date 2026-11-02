@@ -109,18 +109,18 @@ BF.printNotes = function(asm){
   L.push('PARTS');
   asm.parts.forEach(p=>{ const mats=[...new Set(p.bodies.map(b=>{ const m=BF.partMaterial(d,p,b.role); return `${BF.MATERIALS[m.mat].label} ${m.color}`; }))].join(' + ');
     L.push(`- ${p.label}: ${mats}. Print ${p.printFlip?'upside-down (flat face on the bed)':'flat side down'}.`); });
-  L.push('', 'SETTINGS', `- Layer height 0.12–0.16 mm, 4 walls, ${Math.round(d.print.infill*100)}% infill on the ${asm.parts[0].label.toLowerCase()} (100% on small parts).`,
+  L.push('', 'SETTINGS', `- Layer height 0.12–0.16 mm, 4 walls, ${Math.round(d.print.infill*100)}% infill on the ${BF.mainPart(asm).label.toLowerCase()} (100% on small parts).`,
     `- Fit tolerance baked in: ${d.print.tolerance} mm. If parts are too tight, raise it in Print & fit and re-export.`,
     '- Multicolor files share one origin: load them together as one object and assign each to a toolhead.');
   const ins=BF.INSERTS[d.weights.insert]; const cnt=asm.parts.reduce((s,p)=>s+(p.inserts||[]).length,0);
   if(cnt) L.push('', 'INSERTS', `- ${cnt} × ${ins.label} (${(ins.mass*cnt).toFixed(1)} g). Pockets open on the underside: press in, add a drop of CA glue.`);
-  L.push('', 'ESTIMATES', `- Total ${mp.mass.toFixed(1)} g · ${(asm.parts[0].meta.R*2).toFixed(1)} mm wide · ${asm.height.toFixed(1)} mm tall`);
+  L.push('', 'ESTIMATES', `- Total ${mp.mass.toFixed(1)} g · ${(BF.mainPart(asm).meta.R*2).toFixed(1)} mm wide · ${asm.height.toFixed(1)} mm tall`);
   return L.join('\r\n');
 };
 
 BF.claudePrompt = function(asm, an){
   const d=asm.d, nm=BF.naming(d, an&&an.type), D=asm.D, b=d.blade, isX=d.system==='X', tip=BF.TIPS[d.bit.tip];
-  const mp=BF.massProps(asm); const bm=asm.parts[0].meta;
+  const mp=BF.massProps(asm); const bm=BF.mainPart(asm).meta;
   const lines=[
 `I designed a custom ${isX?'Beyblade X':'Beyblade Burst'} called "${nm.full}" in my BeyForge app and want a clean, printable 3D model of it for my Flashforge Creator 5 Pro. Please write a fully parametric OpenSCAD file (every number below as a variable at the top) that outputs each part as a separate printable body, oriented for printing, with no supports needed where possible. Units are millimeters.`,
 '',
@@ -137,10 +137,10 @@ isX?`- Center hole Ø${(D.plugR*2+D.tol*2).toFixed(2)} mm with 3 notches (${D.ta
 d.deco.emblem!=='none'?`- Raised "${d.deco.emblem}" emblem (0.5 mm tall) on top of each wing, about ${Math.round(d.deco.emblemSize*100)}% of the wing's width.`:null,
 d.deco.text?`- Raised lettering "${d.deco.text.toUpperCase()}" curved around the top of the core, 0.5 mm tall.`:null,
 d.deco.texture!=='none'?`- Surface texture: ${d.deco.textureCount}× raised ${d.deco.texture} per wing.`:null,
-(asm.parts[0].inserts||[]).length?`- ${asm.parts[0].inserts.length} blind pockets on the underside for ${BF.INSERTS[d.weights.insert].label}s (Ø${(BF.INSERTS[d.weights.insert].dia+2*D.tol).toFixed(2)} mm, ${BF.INSERTS[d.weights.insert].depth} mm deep), evenly spaced ${Math.hypot(asm.parts[0].inserts[0].x,asm.parts[0].inserts[0].y).toFixed(1)} mm from center.`:null,
+(BF.mainPart(asm).inserts||[]).length?`- ${BF.mainPart(asm).inserts.length} blind pockets on the underside for ${BF.INSERTS[d.weights.insert].label}s (Ø${(BF.INSERTS[d.weights.insert].dia+2*D.tol).toFixed(2)} mm, ${BF.INSERTS[d.weights.insert].depth} mm deep), evenly spaced ${Math.hypot(BF.mainPart(asm).inserts[0].x,BF.mainPart(asm).inserts[0].y).toFixed(1)} mm from center.`:null,
 '',
 isX?`RATCHET: ${d.ratchet.points}-${d.ratchet.height} — ring Ø${(D.ratchetR*2).toFixed(1)} mm, ${(d.ratchet.height/10).toFixed(1)} mm tall, with ${d.ratchet.points} sawtooth contact points sticking out ${D.ratchetTooth} mm. On top: a Ø${(D.plugR*2).toFixed(1)} mm plug, ${D.plugH} mm tall, with 3 tabs (${D.tabDeg}°, ${D.tabDepth} mm) that lock into the blade. Center socket Ø${(D.shaftR*2+D.tol*2).toFixed(2)} mm with 2 key slots for the bit shaft.`
-   :`DISC: ${BF.discCode(d)} — ${d.disc.shape} outline${['star','wing','gear'].includes(d.disc.shape)?` with ${d.disc.lobes} lobes`:''}, Ø${d.disc.diameter} mm, ${d.disc.thickness} mm thick${d.disc.rim>0.07?`, plus a ${(d.disc.rim*3).toFixed(1)} mm rim hanging below the outer edge for rim weight`:''}. Center hole Ø${(D.bShaftR*2+D.tol*2).toFixed(2)} mm with 2 key slots.${(asm.parts[1].inserts||[]).length?` ${asm.parts[1].inserts.length} through-pockets for ${BF.INSERTS[d.weights.insert].label}s.`:''}`,
+   :`DISC: ${BF.discCode(d)} — ${d.disc.shape} outline${['star','wing','gear'].includes(d.disc.shape)?` with ${d.disc.lobes} lobes`:''}, Ø${d.disc.diameter} mm, ${d.disc.thickness} mm thick${d.disc.rim>0.07?`, plus a ${(d.disc.rim*3).toFixed(1)} mm rim hanging below the outer edge for rim weight`:''}. Center hole Ø${(D.bShaftR*2+D.tol*2).toFixed(2)} mm with 2 key slots.${(asm.parts.find(p=>p.id==='disc').inserts||[]).length?` ${asm.parts.find(p=>p.id==='disc').inserts.length} through-pockets for ${BF.INSERTS[d.weights.insert].label}s.`:''}`,
 '',
 `${isX?'BIT':'DRIVER'}: ${tip.label} tip (${isX?tip.x:tip.burst}) — contact Ø${d.bit.width} mm, tip section ${d.bit.tipLen} mm tall, body Ø${((isX?D.bitBodyR:D.drvBodyR)*2).toFixed(1)} mm. Keyed shaft Ø${((isX?D.shaftR:D.bShaftR)*2).toFixed(1)} mm with 2 keys.${!isX?` ${d.lock.teeth} lock prongs (${D.prongDepth} mm out, ${D.prongH} mm tall) at the top of the shaft.`:''}${isX&&d.bit.gear?` Xtreme Dash gear ring with ${d.bit.gearTeeth} teeth around the body.`:''}${BF.TIPS[d.bit.tip].rubber||d.bit.tipMaterial==='TPU'?' The tip is a separate TPU part that press-fits on.':''}`,
 '',

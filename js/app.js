@@ -9,7 +9,19 @@ const App = BF.App = {
   hist:[], fut:[], lastPush:0, asm:null, mp:null, an:null, t:null,
   ex: Object.assign({stl:true,threemf:true,perPart:true,plate:false,split:true}, BF.LS.get('bf.export',{})),
   init(){
+    this.d=BF.normalize(this.d); BF.syncColors(this.d);
     this.viewer=new BF.Viewer($('#viewport'));
+    // tap a part on the 3D model to jump to its controls
+    this.viewer.onPick=(id,role)=>{ const pro=BF.Settings.get('mode')==='pro';
+      let tab = (role==='accent'||role==='horn'||id==='chip') ? (pro?'extras':'paint') : (id==='blade'||id==='layer') ? 'blade' : (id==='ratchet'||id==='disc') ? (pro?'core':'paint') : 'bit';
+      if(BF.UI.tab==='paint'){ BF.UI.paintPart = role==='accent'?'accent':role==='horn'?'horn':role==='tip'?'tip':{blade:'blade',layer:'blade',ratchet:'ratchet',disc:'disc',bit:'bit',driver:'bit',chip:'chip'}[id]; tab='paint'; }
+      BF.UI.focusTab(tab); this.toast('Editing '+(role==='tip'?'tip':role==='accent'?'accents':role==='horn'?'horns':id)); };
+    BF.Settings.on(k=>{ if(k==='preview'||k==='*'){ BF.clearPaintCache(); this.refreshPaint(); this.renderControls(); }
+      if(k==='quality'||k==='shadows'||k==='*') this.viewer.applyQuality();
+      if(k==='autoSpin'){ this.viewer.setSpin(BF.Settings.get('autoSpin')); document.querySelector('[data-tool=spin]').classList.toggle('on',BF.Settings.get('autoSpin')); }
+      if(k==='mode'||k==='printChecks'||k==='*'){ this.renderControls(); this.renderSheet&&this.asm&&this.renderSheet(); } });
+    $('#settingsBtn').addEventListener('click',()=>BF.Settings.open());
+    document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{ document.getElementById(b.dataset.close).hidden=true; }));
     this.renderControls(); this.rebuild();
     this.bindToolbar(); this.bindTabs(); this.bindKeys(); this.bindFolder(); this.bindModal();
     const mb=$('#muteBtn'); const pm=()=>mb.classList.toggle('muted',BF.Sfx.muted); pm(); mb.addEventListener('click',()=>{ BF.Sfx.toggle(); pm(); });
@@ -28,9 +40,14 @@ const App = BF.App = {
     if(path==='system' && v!==prevSys){ this.d.blade.diameter = v==='X'?46:48; this.d.blade.height = v==='X'?10:12; this.viewer.framed=false; if(this.viewer.state.stadium) this.viewer.setStadium(true,v); }
     if(path==='bit.tip' && BF.TIPS[v].rubber) this.d.bit.tipMaterial='TPU';
     if(path==='weights.insert' && v!=='none' && !this.d.weights.count) this.d.weights.count=3;
+    BF.syncColors(this.d);
     if(o.re) this.renderControls();
+    // paint and cosmetics don't change the shape: just refresh materials (instant)
+    if(path.startsWith('paint.')||path.startsWith('cos.')){ clearTimeout(this.pt); this.pt=setTimeout(()=>this.refreshPaint(),o.commit?0:30); BF.LS.set('bf.current',this.d); return; }
     this.schedule(o.commit?0:40);
   },
+  refreshPaint(){ if(!this.asm) return; this.viewer.setAssembly(this.asm); if(BF.BattleUI&&BF.BattleUI.arena&&BF.BattleUI.st==='setup') BF.BattleUI.previewArena(); },
+  applyTheme(id){ this.push(); this.d=BF.applyTheme(this.d,id); this.viewer.framed=false; this.renderControls(); this.rebuild(); const t=BF.THEMES.find(x=>x.id===id); this.toast(t.name+' theme applied'); },
   schedule(ms){ clearTimeout(this.t); this.t=setTimeout(()=>this.rebuild(),ms); },
   renderControls(){ BF.UI.render($('#controls'),this.d,(k,v,o)=>this.change(k,v,o)); },
   rebuild(){

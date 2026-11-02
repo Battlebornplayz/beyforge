@@ -49,8 +49,8 @@ function overhangArea(part){
 }
 
 BF.analyze = function(asm, mp){
-  const d=asm.d, isB=asm.isB, blade=asm.parts[0], bm=blade.meta;
-  const tip=BF.TIPS[d.bit.tip]||BF.TIPS.flat;
+  const d=asm.d, isB=asm.isB, blade=BF.mainPart(asm), bm=blade.meta;
+  const tip=BF.effTip(d);
   const R=bm.R, rs=bm.rs; let mean=0; rs.forEach(r=>mean+=r); mean/=rs.length;
   let v=0; rs.forEach(r=>v+=(r-mean)*(r-mean)); const rough=Math.sqrt(v/rs.length)/R;
   const protrusion=(R-bm.Rcore)/R;
@@ -82,17 +82,17 @@ function customAgg(c){ let peak=0,at=0; c.forEach((v,i)=>{ if(v>peak){peak=v;at=
 
 function printChecks(asm,mp){
   const d=asm.d, out=[]; const add=(lvl,cat,msg)=>out.push({lvl,cat,msg});
-  const bm=asm.parts[0].meta, label=asm.parts[0].label.toLowerCase();
+  const bm=BF.mainPart(asm).meta, label=BF.mainPart(asm).label.toLowerCase();
   // thin walls
   if(bm.tipZ<1.6) add('bad','Thin walls',`Wing tips are only ${bm.tipZ.toFixed(1)} mm thick — they'll snap on the first hit. Go 2 mm or more.`);
   else if(bm.tipZ<2.2) add('warn','Thin walls',`Wing tips are ${bm.tipZ.toFixed(1)} mm thick. Print with 4+ walls or bump them up.`);
   if(asm.isB && d.disc.thickness<2.5) add('warn','Thin walls',`Disc is ${d.disc.thickness} mm thick — use 100% infill so it doesn't flex.`);
   const tipW=d.bit.width/2;
   if(['needle','point'].includes(d.bit.tip) && tipW<1.2) add('info','Thin walls','Very fine tip — expect a slightly rounded point; light sanding cleans it up.');
-  if(!asm.isB && d.bit.gear){ const bitR=asm.parts[2].meta.bodyR; const tooth=Math.PI*2*(bitR+1.9)/d.bit.gearTeeth/2; if(tooth<0.9) add('warn','Thin walls',`Gear teeth are ${tooth.toFixed(2)} mm wide — fewer teeth print cleaner.`); }
+  if(!asm.isB && d.bit.gear){ const bitR=asm.parts.find(p=>p.id==='bit').meta.bodyR; const tooth=Math.PI*2*(bitR+1.9)/d.bit.gearTeeth/2; if(tooth<0.9) add('warn','Thin walls',`Gear teeth are ${tooth.toFixed(2)} mm wide — fewer teeth print cleaner.`); }
   add('info','Small features',`Locking tabs and keys are ~1.1–1.5 mm. Print the ${asm.isB?'driver and disc':'ratchet and bit'} at 100% infill with 0.12–0.16 mm layers.`);
   // overhangs
-  asm.parts.forEach(p=>{ const a=overhangArea(p); if(a>12) add(a>60?'warn':'info','Overhangs',`${p.label}: ${a.toFixed(0)} mm² of steep overhang${p.printFlip?' (printed upside-down)':''} — turn on tree supports${p.id===asm.parts[0].id&&d.blade.slope<0?' or raise the contact angle':''}.`); });
+  asm.parts.forEach(p=>{ const a=overhangArea(p); if(a>12) add(a>60?'warn':'info','Overhangs',`${p.label}: ${a.toFixed(0)} mm² of steep overhang${p.printFlip?' (printed upside-down)':''} — turn on tree supports${p.id===BF.mainPart(asm).id&&d.blade.slope<0?' or raise the contact angle':''}.`); });
   // balance
   if(mp.offset>0.15) add('bad','Balance',`Center of mass is ${mp.offset.toFixed(2)} mm off-axis — it'll wobble hard. Re-check per-wing sizes and pocket spacing.`);
   else if(mp.offset>0.05) add('warn','Balance',`Center of mass is ${mp.offset.toFixed(2)} mm off-axis — expect some wobble at low spin.`);

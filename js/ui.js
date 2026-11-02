@@ -207,7 +207,7 @@ BF.UI = {
     const typeCol={attack:'var(--pink)',defense:'var(--amber)',stamina:'var(--cyan)',balance:'var(--violet)'}[nm.type];
     const parts=mp.per.map(p=>{ const part=asm.parts.find(x=>x.id===p.id); const mats=[...new Set(part.bodies.map(b=>BF.MATERIALS[BF.partMaterial(d,part,b.role).mat].label))].join(' + ');
       return `<tr><td>${esc(p.label)}</td><td class="mono">${p.mass.toFixed(1)} g</td><td class="dim">${esc(mats)}${p.inserts?` · +${p.inserts.toFixed(1)} g metal`:''}</td></tr>`; }).join('');
-    const checks=[...asm.issues.map(i=>({...i,cat:'Geometry'})),...an.checks];
+    const checks=BF.Settings&&!BF.Settings.get('printChecks')?[]:[...asm.issues.map(i=>({...i,cat:'Geometry'})),...an.checks];
     const cats=['Thin walls','Overhangs','Balance','Weight'];
     const chips=cats.map(c=>{ const hits=checks.filter(x=>x.cat===c && x.lvl!=='info'); const lv=hits.some(h=>h.lvl==='bad')?'bad':hits.length?'warn':'ok'; return `<span class="chk ${lv}">${c}</span>`; }).join('');
     const issues=checks.sort((a,b)=>({bad:0,warn:1,info:2}[a.lvl]-{bad:0,warn:1,info:2}[b.lvl])).map(i=>`<li class="iss ${i.lvl}">${esc(i.msg)}</li>`).join('');
@@ -231,7 +231,7 @@ BF.UI = {
       </div>
       <div class="block">
         <div class="kv"><span>Total weight</span><b class="mono big">${mp.mass.toFixed(1)} g</b></div>
-        <div class="kv"><span>Diameter</span><b class="mono">${(asm.parts[0].meta.R*2).toFixed(1)} mm</b></div>
+        <div class="kv"><span>Diameter</span><b class="mono">${(BF.mainPart(asm).meta.R*2).toFixed(1)} mm</b></div>
         <div class="kv"><span>Height</span><b class="mono">${asm.height.toFixed(1)} mm</b></div>
         <div class="kv"><span>Balance offset</span><b class="mono">${mp.offset<0.005?'0.00':mp.offset.toFixed(2)} mm</b></div>
         <table class="parts">${parts}</table>

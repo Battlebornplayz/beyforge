@@ -78,7 +78,7 @@ const B = BF.BattleUI = {
       ${online?'':`<label class="fl">${this.mode==='cpu'?'CPU opponent':'Player 2'}${sel('pick2',this.picks.p2)}</label>`}
       ${hostCtl?`<div class="fl">Stadium<div class="seg" id="stSeg">${[['X','Xtreme'],['Burst','Burst']].map(([k,l])=>`<button type="button" class="${this.stadiumKind===k?'on':''}" data-st="${k}">${l}</button>`).join('')}</div></div>
       <label class="fl">Stadium size <output id="sizeOut" class="val">${this.size} mm</output><input type="range" id="sizeIn" min="280" max="480" step="10" value="${this.size}"></label>
-      <div class="fine">First to ${BF.RULES[this.stadiumKind].target} points · ${this.stadiumKind==='X'?'Spin 1 · Over 2 · Burst 2 · Xtreme 3':'Spin 1 · Over 1 · Burst 2'}</div>`:''}
+      <div class="fine">${this.rulesLine()} · ${BF.ROUND_LENGTH[BF.Settings.get('roundLength')].label.toLowerCase()} rounds — change in Settings</div>`:''}
       ${onlineHtml}
       ${online?'':`<button class="btn primary wide big" id="fightBtn">Let it rip</button>`}
       ${this.recordLine()}`;
@@ -95,6 +95,8 @@ const B = BF.BattleUI = {
     const sb=$('#startBtn'); if(sb) sb.onclick=()=>this.hostStart();
     this.previewArena();
   },
+  rulesLine(){ const r=BF.Settings.rulesFor(this.stadiumKind), p=r.pts; const allOne=Object.values(p).every(v=>v===1);
+    return `First to ${r.target} ${allOne?'round wins':'points'}${allOne?'':` · Spin ${p.spin} · Over ${p.over} · Burst ${p.burst}${this.stadiumKind==='X'?` · Xtreme ${p.xtreme}`:''}`}`; },
   recordLine(){ const r=BF.Records.get(); if(!r.matches) return ''; return `<div class="record">Record <b>${r.wins}–${r.losses}</b>${r.online.wins+r.online.losses?` · online ${r.online.wins}–${r.online.losses}`:''}</div>`; },
   previewArena(){
     const st=this.stadium(); const f1=BF.fighter(this.myDesign());
@@ -111,10 +113,10 @@ const B = BF.BattleUI = {
   // ---------- match flow ----------
   localStart(){
     const d1=this.designFor(this.picks.p1), d2=this.designFor(this.picks.p2);
-    this.startMatch({stadium:this.stadium(), d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
+    const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
   },
   hostStart(){
-    const m={t:'start', stadium:this.stadium(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
+    const st=this.stadium(); const m={t:'start', stadium:st, rules:BF.Settings.rulesFor(st.kind), decayK:BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
     BF.Net.send(m); this.startMatch(m);
   },
   startMatch(m){
@@ -122,7 +124,7 @@ const B = BF.BattleUI = {
     this.F=[BF.fighter(m.d1,m.n1), BF.fighter(m.d2,m.n2)];
     this.me = this.mode==='online' && BF.Net.role==='guest' ? 1 : 0;
     this.arena.setup(m.stadium,this.F[0],this.F[1]);
-    this.rules=BF.RULES[m.stadium.kind];
+    this.rules=m.rules||BF.Settings.rulesFor(m.stadium.kind);
     this.hud(true); this.nextRound();
   },
   nextRound(){
@@ -140,10 +142,12 @@ const B = BF.BattleUI = {
     this.panel.innerHTML=`
       <div class="lp-head"><span class="${col}">${esc(label)}</span><b>${esc(f.name)}</b><span class="dim">Round ${this.round}</span></div>
       ${dual?`<div class="fl">Spin<div class="seg" id="spinSeg"><button type="button" class="on" data-sp="right">Right</button><button type="button" data-sp="left">Left</button></div></div>`:''}
+      ${f.d.bit.tip==='mode'?`<div class="fl">Tip mode<div class="seg" id="modeSegL"><button type="button" class="${f.d.bit.mode!=='stamina'?'on':''}" data-md="attack">Attack</button><button type="button" class="${f.d.bit.mode==='stamina'?'on':''}" data-md="stamina">Stamina</button></div></div>`:''}
       <label class="fl">Launch angle <output class="val" id="angOut">0°</output><input type="range" id="angIn" min="-30" max="30" step="1" value="0"></label>
       <div class="meter"><i id="meterFill"></i><span class="sweet"></span></div>
       <button class="btn primary wide big rev" id="revBtn">Hold to rev — release to launch</button>
       <div class="fine">Release in the bright zone for a full-power launch.</div>`;
+    let mode=f.d.bit.mode||'attack'; this.panel.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{ mode=b.dataset.md; this.panel.querySelectorAll('[data-md]').forEach(x=>x.classList.toggle('on',x===b)); });
     let spin='right'; this.panel.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ spin=b.dataset.sp; this.panel.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); });
     const ai=$('#angIn'); ai.oninput=()=>$('#angOut').textContent=(ai.value>0?'+':'')+ai.value+'°';
     const btn=$('#revBtn'), fill=$('#meterFill'); let t0=0, raf=0, power=0;
@@ -151,7 +155,7 @@ const B = BF.BattleUI = {
     const start=e=>{ e.preventDefault(); if(t0) return; t0=performance.now(); btn.classList.add('revving'); tick(); BF.Sfx && BF.Sfx.rev(true); };
     const end=e=>{ if(!t0) return; e&&e.preventDefault(); cancelAnimationFrame(raf); BF.Sfx && BF.Sfx.rev(false);
       const p=Math.max(0.35,power); btn.disabled=true; btn.textContent=p>0.9?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
-      this.lockLaunch(who,{power:p,angle:+ai.value,spin}); };
+      this.lockLaunch(who,{power:p,angle:+ai.value,spin,mode}); };
     btn.addEventListener('pointerdown',start); btn.addEventListener('pointerup',end); btn.addEventListener('pointerleave',end);
     btn.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') start(e); }); btn.addEventListener('keyup',e=>{ if(e.key===' '||e.key==='Enter') end(e); });
   },
@@ -164,7 +168,7 @@ const B = BF.BattleUI = {
     }
     this.launches[who]=l;
     if(this.mode==='local' && who===0){ setTimeout(()=>this.launchPanel(1),650); return; }
-    if(this.mode==='cpu') this.launches[1]={power:0.7+Math.random()*0.3, angle:Math.round((Math.random()-0.5)*40), spin:Math.random()<0.5?'right':'left'};
+    if(this.mode==='cpu') this.launches[1]={power:0.7+Math.random()*0.3, angle:Math.round((Math.random()-0.5)*40), spin:Math.random()<0.5?'right':'left', mode:Math.random()<0.5?'attack':'stamina'};
     setTimeout(()=>this.countdown(this.launches,(Math.random()*1e9)|0),500);
   },
   tryGo(){ if(BF.Net.role!=='host'||!this.launches[0]||!this.launches[1]) return; const seed=(Math.random()*1e9)|0; BF.Net.send({t:'go',launches:this.launches,seed}); this.countdown(this.launches,seed); },
@@ -178,8 +182,10 @@ const B = BF.BattleUI = {
   fight(seed){
     this.st='fight';
     const isGuest=this.mode==='online'&&BF.Net.role==='guest';
+    this.arena.live=true; [0,1].forEach(i=>this.arena.launchFx(i));
     if(isGuest){ this.sim=null; return; }
     this.sim=new BF.Sim(this.F[0],this.F[1],this.match.stadium,seed);
+    if(this.match.decayK) this.sim.decayK=this.match.decayK;
     this.sim.launch(this.launches[0],this.launches[1]); this.acc=0; this.sendT=0; this.evQ=[];
     BF.Sfx && BF.Sfx.rip();
   },
@@ -194,6 +200,7 @@ const B = BF.BattleUI = {
     this.st='roundEnd'; if(score) this.score=score;
     const pts=this.rules.pts[res.how]||1;
     if(!fromNet){ this.score[res.winner]+=pts; if(this.mode==='online') BF.Net.send({t:'round',res,score:this.score}); }
+    this.arena.live=false; this.arena.winFx(res.winner);
     const w=this.F[res.winner]; const ban=$('#banner');
     ban.hidden=false; ban.className='banner finish '+res.how+(res.winner===0?' c1':' c2');
     ban.innerHTML=`<small>${FINISH[res.how]}</small><b>${esc(w.name)}</b><span>+${pts} ${pts>1?'points':'point'}</span>`;

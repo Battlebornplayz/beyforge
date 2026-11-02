@@ -23,6 +23,16 @@ function wingProfile(shape,u,custom){
     case 'saw': { const v=(u*3)%1; const tooth=v<0.18? v/0.18 : 1-(v-0.18)/0.82; return (0.45+0.55*tooth)*smooth(u/0.05)*smooth((1-u)/0.05); }
     case 'fin':    return u<0.05 ? smooth(u/0.05) : Math.sqrt(Math.max(0,1-(u-0.05)/0.95));
     case 'ring':   return 1;
+    case 'scythe': return smooth(u/0.05)*(u<0.5 ? 1-0.18*Math.sin(Math.PI*u*2) : Math.pow((1-u)/0.5,1.8));
+    case 'crescent': return Math.pow(Math.sin(Math.PI*u),0.35)*0.85+0.15*u*(1-u)*4;
+    case 'wave':   return (0.5-0.5*Math.cos(4*Math.PI*u))*smooth(Math.min(u,1-u)/0.08)*0.85+0.15*Math.sin(Math.PI*u);
+    case 'shield': return smooth(u/0.12)*smooth((1-u)/0.12)*(1-0.35*Math.exp(-Math.pow((u-0.5)/0.08,2)));
+    case 'arrow':  return Math.max(u<0.35?u/0.35:Math.max(0,1-(u-0.35)/0.25*1.2), (u>0.55&&u<0.85)?0.45*Math.sin(Math.PI*(u-0.55)/0.3):0);
+    case 'twin':   return Math.max(Math.pow(Math.max(0,1-Math.abs(u-0.28)*4),1.3), 0.78*Math.pow(Math.max(0,1-Math.abs(u-0.72)*4),1.3));
+    case 'horn':   return u<0.1 ? smooth(u/0.1) : Math.pow(1-(u-0.1)/0.9,3);
+    case 'feather':{ const v=(u*5)%1, t=v<0.25?v/0.25:1-(v-0.25)/0.75; return (0.55+0.45*t)*(1-0.45*u)*smooth(u/0.04)*smooth((1-u)/0.06); }
+    case 'fang':   return u<0.04 ? smooth(u/0.04) : u<0.2 ? 1-(u-0.04)/0.16*0.45 : 0.55*Math.pow(1-(u-0.2)/0.8,1.2);
+    case 'star':   return Math.pow(Math.max(0,1-Math.abs(u-0.5)*2),2.4);
     case 'custom': { const c=custom||[]; const n=c.length; if(n<2) return 0; const x=u*(n-1), i=Math.floor(x), f=x-i; return clamp(lerp(c[clamp(i,0,n-1)], c[clamp(i+1,0,n-1)], f),0,1); }
   }
   return 0;
@@ -107,6 +117,36 @@ function loft(topRings, botRings){
   return fix(g);
 }
 
+// Prism with holes: outer contour (bottom & top rings, CCW), inner hole ring, extra hole contours.
+// zf(x,y) -> {top,bot} gives heights for vertices that aren't on the outer ring.
+function prism(oB,oT,iB,H,zb,holes,zf){
+  const V2=pts=>pts.map(p=>new T.Vector2(p[0],p[1]));
+  const outer=oB.map(p=>[p[0],p[1]]);
+  const hole0=iB.map(p=>[p[0],p[1]]).reverse();
+  const hl=[hole0,...holes.map(h=>T.ShapeUtils.isClockWise(V2(h))?h:h.slice().reverse())];
+  const faces=T.ShapeUtils.triangulateShape(V2(outer),hl.map(V2));
+  const flat=[...outer,...hl.flat()];
+  const nO=outer.length, top=[], bot=[];
+  flat.forEach((q,ix)=>{
+    if(ix<nO){ top.push(oT[ix]); bot.push(oB[ix]); }
+    else if(ix<nO+hole0.length){ top.push([q[0],q[1],H]); bot.push([q[0],q[1],zb]); }
+    else { const z=zf(q[0],q[1]); top.push([q[0],q[1],z.top]); bot.push([q[0],q[1],z.bot]); }
+  });
+  const pos=[]; const tri=(a,b,c)=>pos.push(a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[1],c[2]);
+  faces.forEach(f=>{
+    const a=top[f[0]],b=top[f[1]],c=top[f[2]];
+    const nz=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+    if(nz>=0){ tri(a,b,c); tri(bot[f[0]],bot[f[2]],bot[f[1]]); } else { tri(a,c,b); tri(bot[f[0]],bot[f[1]],bot[f[2]]); }
+  });
+  // walls: outer CCW and holes CW, same winding rule gives outward-facing walls
+  let off=0;
+  [outer,...hl].forEach(ct=>{ const n=ct.length;
+    for(let j=0;j<n;j++){ const a=off+j, b=off+(j+1)%n; tri(bot[a],bot[b],top[b]); tri(bot[a],top[b],top[a]); }
+    off+=n; });
+  const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3));
+  return fix(g);
+}
+
 // ---------- emblems (unit size, pointing +y = outward) ----------
 function poly(pts){ return shapeFrom(pts); }
 const EMB = {
@@ -141,12 +181,13 @@ function buildBlade(d,D,isB,issues){
   const W=Math.max(1,Math.round(b.wings)), ring=b.shape==='ring';
   const span=TAU/W*(ring?1:b.wingWidth);
   const scaleOf=i=>d.symmetry?1:(b.wingScale[i]??1), shiftOf=i=>d.symmetry?0:(b.wingShift[i]||0)*DEG;
+  const shapeOf=i=>(b.mixShapes && b.wingShapes && b.wingShapes[i]) || b.shape;
   const rs=new Float64Array(N);
   for(let j=0;j<N;j++){
     const a=j/N*TAU; let h=0;
     for(let i=0;i<W;i++){
       let s=a-(i*TAU/W+shiftOf(i)); s=((s%TAU)+TAU)%TAU;
-      if(s<=span){ const u=s/span; let p=wingProfile(b.shape,u,b.custom); if(d.spin==='dual') p=Math.max(p,wingProfile(b.shape,1-u,b.custom)); h=Math.max(h,p*scaleOf(i)); }
+      if(s<=span){ const u=s/span, sh=shapeOf(i); let p=wingProfile(sh,u,b.custom); if(d.spin==='dual') p=Math.max(p,wingProfile(sh,1-u,b.custom)); h=Math.max(h,p*scaleOf(i)); }
     }
     rs[j]=Rcore+(R-Rcore)*h;
   }
@@ -185,27 +226,66 @@ function buildBlade(d,D,isB,issues){
   let H=b.height;
   if(baseH>0 && H<baseH+1.2){ H=baseH+1.2; issues.push({lvl:'info',msg:`Core height raised to ${H.toFixed(1)} mm so the top covers the weight pockets.`}); }
   const zb=baseH>0?baseH-0.05:0;
-  const tipZ=clamp(b.tipHeight, (baseH>0?baseH:0)+1.0, H);
+  const tipZ=clamp(b.tipHeight, (baseH>0?baseH:0)+1.0, 22);
   const rm=Rcore-0.8;
-  const topZ=t=>lerp(H,tipZ,t);
+  // side profile: straight line core->tip plus 3 bend handles (push/pull sculpt), and optional wing lift
+  const bends=(b.profile&&b.profile.length===3)?b.profile:[0,0,0];
+  const bendAt=t=>{ const k=[0,bends[0],bends[1],bends[2],0], x=clamp(t,0,1)*4, i=Math.min(3,Math.floor(x)), f=x-i; return lerp(k[i],k[i+1],smooth(f)); };
+  const lift=(b.lift||0);
+  const liftAt=t=>lift*Math.pow(clamp(t,0,1),2);
+  const topZ=t=>Math.max(zbAt(t)+1.0, lerp(H,tipZ,t)+bendAt(t)*H*0.35+liftAt(t));
+  function zbAt(t){ return (baseH>0?baseH-0.05:0)+liftAt(t); }
 
   let P=[]; for(let j=0;j<N;j++) P.push({a:A[j],r:rs[j],t:Tt[j]});
   if(left) P=P.map(p=>({a:-p.a,r:p.r,t:p.t})).reverse();
   const sl=Math.tan(b.slope*DEG);
   // true height of the top surface along the ray of sample j (right-spin frame)
-  const surfZ=(j,r)=>{ const zt=topZ(Tt[j]); const rt=Math.max(rm+0.3, rs[j]-sl*(zt-zb)*Tt[j]); return r<=rm?H:lerp(H,zt,clamp((r-rm)/Math.max(0.01,rt-rm),0,1)); };
-  const oB=[],oT=[],iB=[],iT=[],mid=[];
+  const surfZ=(j,r)=>{ const zt=topZ(Tt[j]); const rt=Math.max(rm+0.3, rs[j]-sl*(zt-zb)*Tt[j]); return r<=rm?H:topZ(Tt[j]*clamp((r-rm)/Math.max(0.01,rt-rm),0,1)); };
+  const FR=[0.25,0.5,0.75];
+  const oB=[],oT=[],iB=[],iT=[],mid=[],midB=[], rT=FR.map(()=>[]), rB=FR.map(()=>[]);
   for(const p of P){
     const c=Math.cos(p.a), s=Math.sin(p.a), hr=holeFn(p.a), zt=topZ(p.t);
-    const rt=Math.max(rm+0.3, p.r - sl*(zt-zb)*p.t);
-    oB.push([p.r*c,p.r*s,zb]); oT.push([rt*c,rt*s,zt]); iB.push([hr*c,hr*s,zb]); iT.push([hr*c,hr*s,H]); mid.push([rm*c,rm*s,H]);
+    const rt=Math.max(rm+0.3, p.r - sl*(zt-zbAt(p.t))*p.t);
+    oB.push([p.r*c,p.r*s,zbAt(p.t)]); oT.push([rt*c,rt*s,zt]); iB.push([hr*c,hr*s,zb]); iT.push([hr*c,hr*s,H]); mid.push([rm*c,rm*s,H]); midB.push([rm*c,rm*s,zb]);
+    FR.forEach((f,k)=>{ const t=p.t*f, rr=lerp(rm,rt,f), rb=lerp(rm,p.r,f); rT[k].push([rr*c,rr*s,topZ(t)]); rB[k].push([rb*c,rb*s,zbAt(t)]); });
   }
-  const geos=[loft([iT,mid,oT],[iB,oB])];
+  // cutouts: through-holes in each wing (built as a prism so holes cut cleanly through the sloped top)
+  const cut=b.cutouts||{count:0}; const cutPaths=[];
+  if(cut.count>0){
+    for(let i=0;i<W;i++) for(let m=0;m<cut.count;m++){
+      const ac=i*TAU/W+shiftOf(i)+span*(cut.count===1?0.5:(m+1)/(cut.count+1)), j=idxOf(ac), reach=rs[j]-Rcore;
+      const f=clamp(cut.pos,0.25,0.85), rr=Rcore+reach*f, a=twistAt(ac,Tt[j]*f);
+      const rad=Math.min(reach*cut.size*0.5, rr*span/(cut.count+1)*0.45);
+      if(rad<1.2) continue;
+      let pts;
+      if(cut.shape==='slot'){ pts=[]; for(let q=0;q<24;q++){ const qa=q/24*TAU, ex=Math.cos(qa)*rad*1.7, ey=Math.sin(qa)*rad*0.65; pts.push([rr*Math.cos(a)+ex*Math.cos(a)-ey*Math.sin(a), rr*Math.sin(a)+ex*Math.sin(a)+ey*Math.cos(a)]); } }
+      else if(cut.shape==='tri'){ pts=[0,1,2].map(q=>{ const qa=a+q*TAU/3; return [rr*Math.cos(a)+rad*1.2*Math.cos(qa), rr*Math.sin(a)+rad*1.2*Math.sin(qa)]; }); }
+      else pts=circlePts(rr*Math.cos(a),rr*Math.sin(a),rad,24);
+      let ok=true; for(const q of pts){ const r2=Math.hypot(q[0],q[1]); if(r2>outlineAt(Math.atan2(q[1],q[0]))-1.3 || r2<rm+0.6) ok=false; }
+      for(const pk of pockets) for(const q of pts) if(Math.hypot(q[0]-pk.x,q[1]-pk.y)<pk.r+1.0) ok=false;
+      if(ok) cutPaths.push(pts);
+    }
+    if(!cutPaths.length) issues.push({lvl:'info',msg:'Cutouts are too big for these wings — make them smaller or widen the wings.'});
+  }
+  if(left) cutPaths.forEach((pts,ix)=>{ cutPaths[ix]=pts.map(q=>[q[0],-q[1]]); });
+  const geos=[];
+  if(!cutPaths.length) geos.push(loft([iT,mid,...rT,oT],[iB,midB,...rB,oB]));
+  else geos.push(prism(oB,oT,iB,H,zb,cutPaths,(x,y)=>{ let a=Math.atan2(y,x); if(left) a=-a; const r=Math.hypot(x,y), ro=outlineAt(a), to=clamp((ro-Rcore)/spanR,0,1); const f=clamp((r-rm)/Math.max(0.01,ro-rm),0,1); return {top:r<=rm?H:topZ(to*f), bot:zbAt(to*f)}; }));
   if(baseH>0){
     const sh=shapeFrom(oB.map(p=>[p[0],p[1]]));
     sh.holes.push(pathFrom(iB.map(p=>[p[0],p[1]])));
     pockets.forEach(pk=>{ const y=left?-pk.y:pk.y; sh.holes.push(pathFrom(ins.shape==='hex'?hexPts(pk.x,y,pk.r,pk.a):circlePts(pk.x,y,pk.r,28))); });
+    cutPaths.forEach(pts=>sh.holes.push(pathFrom(pts.slice().reverse())));
     geos.push(extrude(sh,baseH,0));
+  }
+  // upper tier: a second, smaller blade layer stacked on the core
+  const tier=b.tier||{}; let tierH=0;
+  if(tier.on){
+    const R2=Math.max(holeMax+4, R*tier.diameter), R2c=Math.max(holeMax+1.6, R2*(1-tier.depth)), n2=Math.max(1,Math.round(tier.wings)), sp2=TAU/n2*0.8;
+    const tf=a=>{ let s2=((a-TAU/n2/2)%(TAU/n2)+TAU/n2)%(TAU/n2); return s2<=sp2 ? R2c+(R2-R2c)*wingProfile(tier.shape,s2/sp2,b.custom) : R2c; };
+    let tp=polarPts(tf,240); if(left) tp=mirrorPts(tp);
+    const ts=shapeFrom(tp); ts.holes.push(pathFrom(polarPts(holeFn,180)));
+    tierH=clamp(tier.height,1,8); geos.push(extrude(ts,tierH+0.05,H-0.05));
   }
 
   // decorations built in the right-spin frame, mirrored for left
@@ -234,7 +314,22 @@ function buildBlade(d,D,isB,issues){
       for(let m=0;m<kk;m++){ const f=0.35+0.25*m; if(f>0.9) break; const rr=Rcore+reach*f, tt=tj*f, a=twistAt(ac,tt); const s=Math.min(reach*0.3, rr*span*0.35); if(s<2) continue; const g=emblemGeo('chevron',s,0.7); g.rotateZ(a-Math.PI/2); g.translate(rr*Math.cos(a),rr*Math.sin(a),surfZ(idxOf(a),rr)-0.3); acc.push(g); }
     }
   }
+  // horns & spikes standing up off the wings
+  const horns=[]; const hc=(deco.horns&&deco.horns.count)||0;
+  if(hc>0) for(let i=0;i<W;i++){
+    const ac=i*TAU/W+shiftOf(i)+span*0.4, j=idxOf(ac), reach=rs[j]-Rcore; if(reach<4) continue;
+    for(let m=0;m<hc;m++){
+      const f=hc===1?0.55:0.35+0.45*m/(hc-1), rr=Rcore+reach*f, a=twistAt(ac,Tt[j]*f), z=surfZ(idxOf(a),rr)-0.4;
+      const hh=deco.horns.height*(hc===1?1:1-0.2*m), rb=Math.min(2.6,reach*0.18+0.8);
+      let g;
+      if(deco.horns.style==='fin'){ const sh=poly([[-rb*1.6,0],[rb*1.6,0],[rb*0.3,hh],[-rb*0.2,hh*0.9]]); g=new T.ExtrudeGeometry(sh,{depth:1.4,bevelEnabled:false}); g.translate(0,0,-0.7); g.rotateX(Math.PI/2); g.rotateZ(Math.PI/2); }
+      else { g=new T.CylinderGeometry(deco.horns.style==='horn'?0.25:0.05, rb, hh, 14); g.translate(0,hh/2,0); g.rotateX(Math.PI/2); }
+      g.rotateX(-(deco.horns.lean||0)*DEG); g.rotateZ(a); g.translate(rr*Math.cos(a),rr*Math.sin(a),z);
+      horns.push(fix(g));
+    }
+  }
   if(left) acc.forEach((g,ix)=>{ g.scale(1,-1,1); acc[ix]=fix(g); });
+  if(left) horns.forEach((g,ix)=>{ g.scale(1,-1,1); horns[ix]=fix(g); });
 
   // curved text around the core (always readable, never mirrored)
   const txt=(deco.text||'').toUpperCase().trim().slice(0,16);
@@ -252,15 +347,17 @@ function buildBlade(d,D,isB,issues){
       const gap=size*0.2; let total=ws.reduce((s,w)=>s+w,0)+gap*(ws.length-1);
       const maxArc=TAU*rt*0.9, sc=total>maxArc?maxArc/total:1; total*=sc;
       const start=Math.PI/2+total/(2*rt); let cum=0;
-      gs.forEach((g,ix)=>{ const w=ws[ix]*sc; if(g){ if(sc<1) g.scale(sc,sc,1); const phi=start-(cum+w/2)/rt; g.rotateZ(phi-Math.PI/2); g.translate(rt*Math.cos(phi),rt*Math.sin(phi),H-0.3); acc.push(fix(g)); } cum+=w+gap*sc; });
+      gs.forEach((g,ix)=>{ const w=ws[ix]*sc; if(g){ if(sc<1) g.scale(sc,sc,1); const phi=start-(cum+w/2)/rt; g.rotateZ(phi-Math.PI/2); g.translate(rt*Math.cos(phi),rt*Math.sin(phi),H+tierH-0.3); acc.push(fix(g)); } cum+=w+gap*sc; });
     } else issues.push({lvl:'info',msg:'Core ring is too thin for text — lower the wing reach to make room.'});
   }
 
   const bodies=[{role:'main',geo:mergeNI(geos)}];
   const ag=mergeNI(acc); if(ag) bodies.push({role:'accent',geo:ag});
+  const hg=mergeNI(horns); if(hg) bodies.push({role:'horn',geo:hg});
+  if(lift>0.3) issues.push({lvl:'info',msg:'Lifted wings print with supports underneath.'});
   const insList=pockets.map(pk=>({x:pk.x,y:left?-pk.y:pk.y,z:baseH/2,ins:d.weights.insert,rot:pk.a}));
-  return {id:isB?'layer':'blade', label:isB?'Layer':'Blade', height:H, bodies, inserts:insList, printFlip:false,
-    meta:{R:Rmax, Rcore, rm, holeMax, H, tipZ, W, span, rs:Array.from(rs), baseH, slope:b.slope}};
+  return {id:isB?'layer':'blade', label:isB?'Layer':'Blade', height:H+tierH, bodies, inserts:insList, printFlip:false,
+    meta:{R:Rmax, Rcore, rm, holeMax, H, tipZ, W, span, rs:Array.from(rs), baseH, slope:b.slope, tierH, outline:oB.filter((_,i)=>i%2===0).map(q=>[q[0],q[1]]), wingAngles:Array.from({length:W},(_,i)=>{ const a=i*TAU/W+shiftOf(i); return left?-(a+span):a; }), span, left}};
 }
 
 // ---------- RATCHET (X) ----------
@@ -280,7 +377,7 @@ function buildRatchet(d,D){
 }
 
 // ---------- BIT (X) / DRIVER (Burst) ----------
-function tipProfile(prof,w,L){
+function tipProfile(prof,w,L,custom){
   switch(prof){
     case 'rush':   return [[0,0],[w*0.55,0],[w*0.85,0.35],[w,0.9],[w,L]];
     case 'taper':  return [[0,0],[w*0.45,0],[w,L*0.65],[w,L]];
@@ -288,15 +385,23 @@ function tipProfile(prof,w,L){
     case 'needle': return [[0,0],[0.25,0.03],[w*0.6,L*0.7],[w,L]];
     case 'ball': { const rb=Math.min(w,L), p=[[0,0]]; for(let i=1;i<=10;i++){ const al=i/10*Math.PI/2; p.push([rb*Math.sin(al), rb*(1-Math.cos(al))]); } if(L>rb) p.push([rb,L]); return p; }
     case 'orb':  { const bb=Math.min(L,w*0.8), p=[[0,0]]; for(let i=1;i<=10;i++){ const al=i/10*Math.PI/2; p.push([w*Math.sin(al), bb*(1-Math.cos(al))]); } if(L>bb) p.push([w,L]); return p; }
+    case 'spike':  return [[0,0],[0.15,0.02],[w*0.5,L*0.8],[w,L]];
+    case 'xtreme': return [[0,0],[Math.max(0.3,w-0.3),0],[w,0.3],[w,L]];
+    case 'dish':   return [[0,0.6],[w*0.55,0.6],[w*0.62,0],[Math.max(w*0.65,w-0.3),0],[w,0.3],[w,L]];
+    case 'unite':  return [[0,0],[w*0.3,0.08],[w*0.42,0.35],[w*0.6,0.35],[w*0.72,0.12],[w*0.86,0.12],[w,0.6],[w,L]];
+    case 'bearing':{ const hw=Math.max(w,5.4); return [[0,0],[1.1,0.25],[1.6,1.1],[2.2,1.4],[hw,1.6],[hw,L]]; }
+    case 'mode':   return [[0,0],[0.6,0.05],[1.2,0.8],[w*0.72,0.8],[w*0.82,0.45],[w,0.45],[w,L]];
+    case 'custom': { const c=custom&&custom.length?custom:[0.2,0.45,0.7,0.85,0.95,1,1,1]; const pts=[[0,0]]; c.forEach((f,i)=>pts.push([Math.max(0.15,f*w), L*i/(c.length-1)])); return pts; }
     default:       return [[0,0],[Math.max(0.3,w-0.5),0],[w,0.5],[w,L]];
   }
 }
+BF.tipProfileFor=(prof,w,L,c)=>tipProfile(prof,w,L,c);
 function buildBit(d,D,isB,seatLen){
   const bt=d.bit, tip=BF.TIPS[bt.tip]||BF.TIPS.flat;
   const L=Math.max(1.5, bt.tipLen*(tip.low?0.6:1));
   const bodyR=isB?D.drvBodyR:D.bitBodyR, bodyH=isB?D.drvBodyH:D.bitBodyH;
   const w=clamp(bt.width/2,0.8,bodyR-0.3);
-  const prof=tipProfile(tip.prof,w,L), rTop=prof[prof.length-1][0];
+  const prof=tipProfile(tip.prof,w,L,bt.customTip), rTop=prof[prof.length-1][0];
   const tipGeo=lathe([...prof,[rTop,L+0.4],[0,L+0.4]], bt.tip==='hexa'?6:64);
   const body=lathe([[0,L-0.2],[Math.max(rTop*0.9,2),L-0.2],[bodyR,L+1.4],[bodyR,L+bodyH],[0,L+bodyH]],64);
   const hb=L+bodyH, main=[body];
@@ -360,7 +465,25 @@ function buildDisc(d,D,issues){
   return {id:'disc', label:'Disc', height:c.thickness, zMin:rimH>0.2?-rimH:0, bodies:[{role:'main',geo:mergeNI(geos)}], inserts, printFlip:rimH>0.2, meta:{R, rim:rimH}};
 }
 
+// ---------- CHIP / CAP: decorative top piece that pegs into the center hole ----------
+function buildChip(d,D,blade,isB,issues){
+  const c=d.chip, bm=blade.meta, rc=bm.holeMax+2.4, h=clamp(c.height,1.5,6);
+  const holeR=(isB?D.bShaftR:D.plugR)+D.tol;
+  const pegLen=Math.min(2.5, bm.H-(isB?D.engage:D.plugH)-0.4);
+  const prof=[[0,0],[rc,0],[rc,h*0.35]]; const dome=clamp(c.dome,0,1);
+  for(let i=1;i<=8;i++){ const t=i/8; prof.push([rc*Math.cos(t*Math.PI/2*(0.4+0.6*dome)+ (1-dome)*0)*(1-t*0.15)*(1-t*t*(0.2+0.8*dome)), h*0.35+h*0.65*Math.sin(t*Math.PI/2)]); }
+  prof.push([0,h]);
+  const geos=[lathe(prof,64)];
+  if(pegLen>=1){ const peg=new T.CylinderGeometry(holeR-D.tol-0.15,holeR-D.tol-0.15,pegLen+0.05,32); peg.rotateX(Math.PI/2); peg.translate(0,0,-pegLen/2+0.02); geos.push(fix(peg)); }
+  else issues.push({lvl:'info',msg:'The center hole is too shallow for a chip peg — glue the chip on.'});
+  const acc=[];
+  if(c.emblem && c.emblem!=='none'){ const g=emblemGeo(c.emblem,rc*1.1,0.8); g.translate(0,0,h-0.35); acc.push(g); }
+  const bodies=[{role:'main',geo:mergeNI(geos)}]; const ag=mergeNI(acc); if(ag) bodies.push({role:'accent',geo:ag});
+  return {id:'chip', label:isB?'Chip':'Cap', height:h, zMin:pegLen>=1?-pegLen:0, bodies, inserts:[], printFlip:false, meta:{R:rc}};
+}
+
 // ---------- ASSEMBLY ----------
+BF.mainPart = asm => asm.parts.find(p=>p.id==='blade'||p.id==='layer');
 BF.build = function(d){
   const D=dims(d), isB=d.system==='Burst', issues=[];
   const parts=[];
@@ -371,6 +494,7 @@ BF.build = function(d){
     bit.z0=0; rat.z0=bit.seatZ; blade.z0=rat.z0+rat.seatH;
     if(D.plugH>blade.height-0.6) issues.push({lvl:'warn',msg:'Ratchet plug is taller than the blade core — raise core height or lower plug height.'});
     parts.push(blade,rat,bit);
+    if(d.chip&&d.chip.on){ const ch=buildChip(d,D,blade,false,issues); ch.z0=blade.z0+blade.height-0.02; parts.unshift(ch); }
   } else {
     const disc=buildDisc(d,D,issues);
     const drv=buildBit(d,D,true,d.disc.thickness);
@@ -379,6 +503,7 @@ BF.build = function(d){
     if(D.engage>layer.height-0.6) issues.push({lvl:'warn',msg:'Driver lock prongs are taller than the layer core — raise the core height.'});
     if(disc.meta.rim>drv.seatZ-0.5) issues.push({lvl:'warn',msg:'Disc rim hangs low enough to scrape the stadium — lower rim weight or use a taller tip.'});
     parts.push(layer,disc,drv);
+    if(d.chip&&d.chip.on){ const ch=buildChip(d,D,layer,true,issues); ch.z0=layer.z0+layer.height-0.02; parts.unshift(ch); }
   }
   let top=0; parts.forEach(p=>top=Math.max(top,p.z0+p.height));
   return {d, D, isB, parts, issues, height:top};
@@ -399,12 +524,15 @@ function moments(geo){
 }
 BF.moments = moments;
 BF.partMaterial = function(d,part,role){
-  if(role==='accent') return {mat:d.blade.material, color:d.deco.accent};
-  if(part.id==='blade'||part.id==='layer') return {mat:d.blade.material, color:d.blade.color};
-  if(part.id==='ratchet') return {mat:d.ratchet.material, color:d.ratchet.color};
-  if(part.id==='disc') return {mat:d.disc.material, color:d.disc.color};
-  if(role==='tip') return {mat:d.bit.tipMaterial, color:d.bit.tipColor};
-  return {mat:d.bit.material, color:d.bit.color};
+  const P=d.paint||{}, pc=(k,fb)=>(P[k]&&P[k].color)||fb;
+  if(role==='accent') return {mat:d.blade.material, color:pc('accent',d.deco.accent)};
+  if(role==='horn') return {mat:d.blade.material, color:pc('horn',d.deco.accent)};
+  if(part.id==='chip') return {mat:d.blade.material, color:pc('chip','#ffd21f')};
+  if(part.id==='blade'||part.id==='layer') return {mat:d.blade.material, color:pc('blade',d.blade.color)};
+  if(part.id==='ratchet') return {mat:d.ratchet.material, color:pc('ratchet',d.ratchet.color)};
+  if(part.id==='disc') return {mat:d.disc.material, color:pc('disc',d.disc.color)};
+  if(role==='tip') return {mat:d.bit.tipMaterial, color:pc('tip',d.bit.tipColor)};
+  return {mat:d.bit.material, color:pc('bit',d.bit.color)};
 };
 // printed parts are not solid: walls are solid, the inside is infill
 BF.fillFactor = d => 0.55 + 0.45*d.print.infill;
