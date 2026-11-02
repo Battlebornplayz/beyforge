@@ -3,6 +3,7 @@
 'use strict';
 const S=window.Studio, BF=window.BF, {$,$$,esc}=S;
 const RAR=['common','rare','epic','legendary'];
+const DEXSETS=[['X_blade','X Blades'],['X_core','X Ratchets'],['X_driver','X Bits'],['Burst_blade','Burst Layers'],['Burst_core','Burst Discs'],['Burst_driver','Burst Drivers']];
 const merge=(a,b)=>{ if(Array.isArray(b)) return BF.clone(b); if(b&&typeof b==='object'){ const o=Object.assign({},a); Object.entries(b).forEach(([k,v])=>o[k]=merge(a&&a[k],v)); return o; } return b===undefined?BF.clone(a):b; };
 const rewardFields=(pre,r,packs)=>`<div class="rw">${S.f.num(pre+'.coins','Coins',r.coins||'',{min:0})}${S.f.num(pre+'.gems','Gems',r.gems||'',{min:0})}${S.f.num(pre+'.hourglass','Hourglasses',r.hourglass||'',{min:0})}
   ${S.f.sel(pre+'.pack','Pack',r.pack||'',Object.assign({'':'—'},packs))}${pre.includes('rewards')?S.f.sel(pre+'.part','Part',r.part||'',{'':'—',common:'Common',rare:'Rare',epic:'Epic',legendary:'Legendary'}):S.f.num(pre+'.freeze','Freezes',r.freeze||'',{min:0,max:3})}</div>`;
@@ -33,6 +34,10 @@ S.register('economy',{title:'Rewards & economy',icon:'🎁',group:'Live ops',sec
       <div class="row"><button class="btn sm" id="addDay">＋ Add day</button><span class="muted small">Value is a rough coin estimate (gem 25, hourglass 40, pack = its price). A ✓ jackpot is worth more than the 6 days before it.</span></div></section>
     <div class="grid2"><section class="card"><h3>☀ First win of the day</h3>${F.tog('firstWin.on','On',c.firstWin.on)}<div class="grid2">${F.num('firstWin.xp','XP',c.firstWin.xp,{min:0})}${F.num('firstWin.coins','Coins',c.firstWin.coins,{min:0})}</div>${F.tog('firstWin.spinDrop','Also give a free Spin Drop',c.firstWin.spinDrop)}</section>
       <section class="card"><h3>🎯 Missions</h3>${F.num('missions.hourglassOnAll','Hourglasses for finishing all 3 daily missions',c.missions.hourglassOnAll,{min:0,max:5})}</section></div>
+    <section class="card"><h3>📖 Beydex</h3><p class="muted">Which layout new players see first, plus the rewards for finishing a set and for hitting a % of the whole Beydex. Players can still switch layouts themselves.</p>
+      ${F.tog('dex.on','Beydex rewards on',c.dex.on)}<div class="grid3">${F.sel('dex.defaultView','Default layout',c.dex.defaultView,{grid:'Store grid',binder:'Collector binder',locker:'Locker + inspector',show:'Showroom'})}</div>
+      <h4>Set rewards</h4>${DEXSETS.map(([k,l])=>`<div class="rwrow"><span class="pill">${l}</span>${rewardFields('dex.sets.'+k,c.dex.sets[k]||{},packs)}</div>`).join('')}
+      <h4>Completion rewards</h4>${c.dex.milestones.map((m,i)=>`<div class="rwrow">${F.num('dex.milestones.'+i+'.pct','% done',m.pct,{min:1,max:100})}${rewardFields('dex.milestones.'+i,m,packs)}</div>`).join('')}</section>
     <section class="card"><h3>💫 Spin Drops <span class="sum ${Math.round(sum)===100?'ok':'bad'}">${sum}%</span></h3><p class="muted">After a win, players open a capsule. Each step it can upgrade to the next rarity.</p>
       ${F.tog('spinDrop.on','On',sd.on)}<div class="grid3">${F.num('spinDrop.perDay','Drops per day',sd.perDay,{min:0,max:50})}${F.range('spinDrop.upgrade','Upgrade chance per step',sd.upgrade,{min:0,max:60,unit:'%'})}</div>
       <div class="grid4">${RAR.map(r=>F.num('spinDrop.odds.'+r,(BF.RARITY[r]||{label:r}).label+' %',sd.odds[r],{min:0,max:100,step:0.5})).join('')}</div>
@@ -40,6 +45,7 @@ S.register('economy',{title:'Rewards & economy',icon:'🎁',group:'Live ops',sec
     if(!canEdit) $$('input,select',v).forEach(i=>i.disabled=true);
     const sync=()=>{ const o=S.read(v); ['onboarding','freePack','firstWin','missions'].forEach(k=>c[k]=Object.assign({},c[k],o[k]||{})); c.streak=Object.assign({},c.streak,{on:o.streak.on,freezeMax:o.streak.freezeMax});
       c.spinDrop=Object.assign({},c.spinDrop,{on:o.spinDrop.on,perDay:o.spinDrop.perDay,upgrade:o.spinDrop.upgrade,odds:o.spinDrop.odds,rewards:Object.fromEntries(RAR.map(r=>[r,clean(o.spinDrop.rewards[r])]))});
+      if(o.dex){ const ds={}; Object.entries(o.dex.sets||{}).forEach(([k,r])=>ds[k]=clean(r)); c.dex=Object.assign({},c.dex,{on:o.dex.on,defaultView:o.dex.defaultView,sets:ds,milestones:Object.values(o.dex.milestones||{}).map(clean).filter(m=>m.pct).sort((a,b)=>a.pct-b.pct)}); }
       $$('[data-d]',v).forEach(i=>{ const [d,k]=i.dataset.d.split('.'); const day=c.streak.days[+d]=c.streak.days[+d]||{}; let x=i.type==='checkbox'?i.checked:i.value; if(i.type==='number') x=i.value===''?0:+i.value; day[k]=x; c.streak.days[+d]=clean(day); }); };
     S.bindLive(v,e=>{ if(e.type==='change'&&(e.target.dataset.d||/odds/.test(e.target.dataset.f||''))){ sync(); draw(); } });
     $$('[data-rm]',v).forEach(b=>b.onclick=()=>{ sync(); c.streak.days.splice(+b.dataset.rm,1); draw(); });

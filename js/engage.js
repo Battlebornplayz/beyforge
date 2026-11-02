@@ -27,7 +27,10 @@ const DEFAULTS={
   firstWin:{on:true,xp:150,coins:100,spinDrop:true},
   spinDrop:{on:true,perDay:6,odds:{common:58,rare:30,epic:10,legendary:2},upgrade:25,
     rewards:{common:{coins:40},rare:{coins:120,hourglass:1},epic:{gems:8,pack:'pack'},legendary:{part:'legendary',gems:20}}},
-  missions:{hourglassOnAll:1}
+  missions:{hourglassOnAll:1},
+  dex:{on:true,defaultView:'grid',
+    sets:{X_blade:{pack:'crate'},X_core:{pack:'elite',gems:20},X_driver:{pack:'elite',gems:20},Burst_blade:{pack:'burstcrate'},Burst_core:{pack:'elite',gems:20},Burst_driver:{pack:'elite',gems:20}},
+    milestones:[{pct:10,coins:500},{pct:25,gems:15,pack:'pack'},{pct:50,gems:30,pack:'elite'},{pct:75,gems:50,pack:'mystery'},{pct:100,gems:150,coins:5000,pack:'crate'}]}
 };
 BF.ECON_DEFAULTS=DEFAULTS;
 const deep=(a,b)=>{ if(Array.isArray(b)) return b.slice(); if(b&&typeof b==='object'){ const o=Object.assign({},a); Object.entries(b).forEach(([k,v])=>o[k]=deep(a&&a[k],v)); return o; } return b===undefined?a:b; };
