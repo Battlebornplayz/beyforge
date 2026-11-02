@@ -44,6 +44,7 @@ const MISSIONS={
   save:{label:'Save a Bey in the Forge',goal:1,reward:40,ev:'save'}, online:{label:'Win an online battle',goal:1,reward:150,ev:'onlinewin'}, rounds6:{label:'Play 6 rounds',goal:6,reward:70,ev:'round'},
   lean:{label:'Lean 10 times mid-fight',goal:10,reward:50,ev:'lean'}
 };
+BF.MISSIONS=MISSIONS;
 const Missions=BF.Missions={
   state(){ let s=BF.LS.get('bf.missions',null); if(!s||s.date!==today()){ const keys=Object.keys(MISSIONS), pick=[]; let seed=parseInt(today().replace(/-/g,''),10);
       while(pick.length<3){ seed=(seed*9301+49297)%233280; const k=keys[Math.floor(seed/233280*keys.length)]; if(!pick.includes(k)) pick.push(k); }
@@ -65,7 +66,7 @@ const Home=BF.Home={
   render(){
     const root=$('#homeRoot'); if(!root) return;
     const a=A(), p=a&&a.profile, lvl=(p&&p.level)||1, xp=(p&&p.xp)||0, x0=BF.xpForLevel?BF.xpForLevel(lvl):0, x1=BF.xpForLevel?BF.xpForLevel(lvl+1):100;
-    const s=Streak.state(), next=Streak.nextDay(), can=Streak.canClaim(), ms=Missions.state(), adv=BF.Adventure?BF.Adventure.data():{tower:0,badges:[]}, wb=BF.Adventure?BF.Adventure.weekly():null;
+    const ms=Missions.state(), adv=BF.Adventure?BF.Adventure.data():{tower:0,badges:[]}, wb=BF.Adventure?BF.Adventure.weekly():null;
     const name=(p&&p.showcase&&p.showcase.name)||(BF.App&&BF.naming(BF.App.d).full)||'Your Bey';
     const tile=(go,icon,label,sub,cls)=>`<button type="button" class="qtile ${cls||''}" data-go="${go}"><i>${BF.icon(icon,30)}</i><b>${label}</b><span>${sub}</span></button>`;
     root.innerHTML=`
@@ -81,10 +82,7 @@ const Home=BF.Home={
         ${tile('forge','forge','Forge','Design & print')}${tile('parts','parts','Open Packs','Parts & crates','packs')}
       </section>
       <section class="hcol">
-        <div class="hbox"><div class="hb-h"><b>Daily streak</b><span class="dim">Day ${can?next:s.n} of 7</span></div>
-          <div class="streak">${STREAK.map((r,i)=>{ const d=i+1, done=(!can&&d<=s.n)||(can&&d<next), now=can&&d===next;
-            return `<div class="sday${done?' done':''}${now?' now':''}"><small>Day ${d}</small><i>${r.pack?'🎁':'🪙'}</i><b>${r.pack?(BF.Packs.get(r.pack)||{name:'Pack'}).name.split(' ')[0]:r.c}</b></div>`; }).join('')}</div>
-          <button class="btn primary wide" id="claimStreak"${can?'':' disabled'}>${can?'Collect today’s reward':'Collected — see you tomorrow'}</button></div>
+        ${BF.Daily?BF.Daily.freeHtml()+BF.Daily.streakHtml():''}
         <div class="hbox"><div class="hb-h"><b>Daily missions</b><span class="dim">reset at midnight</span></div>
           ${ms.list.map(m=>{ const M=MISSIONS[m.id], done=m.prog>=M.goal; return `<div class="mission${m.claimed?' claimed':''}"><div><b>${esc(M.label)}</b><div class="mbar"><i style="width:${m.prog/M.goal*100}%"></i></div><span class="mono dim">${m.prog}/${M.goal}</span></div>
             <button class="btn${done&&!m.claimed?' primary':''}" data-mclaim="${m.id}"${done&&!m.claimed?'':' disabled'}>${m.claimed?'✓':`<span class="coin">+${M.reward}</span>`}</button></div>`; }).join('')}</div>
@@ -94,9 +92,7 @@ const Home=BF.Home={
         <div class="hbox"><div class="hb-h"><b>News</b></div><div id="hNews">${NEWS.map(([v,t])=>`<div class="news"><b>${v}</b><span>${esc(t)}</span></div>`).join('')}</div></div>
       </section>`;
     root.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>this.go(b.dataset.go));
-    $('#claimStreak').onclick=async e=>{ const btn=e.currentTarget; btn.disabled=true;
-      try{ const r=await Streak.claim(); this.burst(btn,r.r.c?'🪙':'🎁'); BF.Sfx&&BF.Sfx.ui&&BF.Sfx.ui('coin'); if(r.made) BF.PackOpen.show(r.made,BF.Packs.get(r.r.pack)); else BF.App.toast(`Day ${r.day}: +${r.r.c} coins`,'good'); setTimeout(()=>this.render(),900); }
-      catch(err){ BF.App.toast(err.message,'bad'); btn.disabled=false; } };
+    BF.Daily&&BF.Daily.bind(root);
     root.querySelectorAll('[data-mclaim]').forEach(b=>b.onclick=async()=>{ try{ const n=await Missions.claim(b.dataset.mclaim); if(n){ this.burst(b,'🪙'); BF.Sfx&&BF.Sfx.ui&&BF.Sfx.ui('coin'); BF.App.toast(`+${n} coins`,'good'); setTimeout(()=>this.render(),700); } }catch(err){ BF.App.toast(err.message,'bad'); } });
     const ann=BF.App&&BF.App._ann; if(ann){ const n=$('#hNews'); n.insertAdjacentHTML('afterbegin',`<div class="news hot"><b>📣</b><span>${esc(ann)}</span></div>`); }
   },

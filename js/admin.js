@@ -18,23 +18,12 @@ BF.Admin = {
     if(this.tab==='ranks') this.ranks(body); else if(this.tab==='players') this.players(body); else if(this.tab==='announce') this.announce(body); else if(this.tab==='ranked') BF.Ranked.editor(body); else if(this.tab==='events') this.events(body); else if(this.tab==='packs') this.packs(body); else if(this.tab==='shop') this.shop(body);
   },
   ranks(el){
-    const roles=Object.entries(A.roles).sort((a,b)=>(b[1].order||0)-(a[1].order||0));
-    el.innerHTML=`<p class="dim small">Ranks control what people can do. Give a rank to a player in the Players tab. Only you (the Owner) can never be demoted.</p>
-      <div class="ranklist">${roles.map(([id,r])=>`<div class="rankrow" data-id="${id}">
-        <input type="color" value="${r.color||'#a07bff'}" data-f="color" aria-label="Rank color"><input class="txt sm" value="${esc(r.name)}" data-f="name" maxlength="20" aria-label="Rank name">
-        <div class="permchips">${Object.entries(PERMS).map(([k,l])=>`<label class="pchip${r.perms&&r.perms[k]?' on':''}" title="${esc(l)}"><input type="checkbox" data-p="${k}"${r.perms&&r.perms[k]?' checked':''}>${esc(l.split(',')[0].split(' &')[0])}</label>`).join('')}</div>
-        <button class="icon-x" data-del title="Delete rank">×</button></div>`).join('')||'<div class="fine">No ranks yet.</div>'}</div>
-      <form class="addrow" id="newRank"><input class="txt sm" id="rankName" placeholder="New rank name (e.g. Admin, Mod, VIP)" maxlength="20"><button class="btn primary">Create rank</button></form>
-      <div class="fine">Tip: a rank with no boxes ticked is just a cosmetic title (like VIP).</div>`;
-    const col=A.db.collection('roles');
-    el.querySelectorAll('.rankrow').forEach(row=>{ const id=row.dataset.id;
-      row.querySelectorAll('[data-f]').forEach(i=>i.onchange=()=>col.doc(id).update({[i.dataset.f]:i.value}).catch(err));
-      row.querySelectorAll('[data-p]').forEach(i=>i.onchange=()=>{ i.parentElement.classList.toggle('on',i.checked); col.doc(id).update({['perms.'+i.dataset.p]:i.checked}).catch(err); });
-      const del=row.querySelector('[data-del]'); del.onclick=()=>{ if(!del.classList.contains('confirm')){ del.classList.add('confirm'); del.textContent='?'; setTimeout(()=>{ del.classList.remove('confirm'); del.textContent='×'; },2500); return; } col.doc(id).delete().catch(err); };
-    });
-    el.querySelector('#newRank').onsubmit=e=>{ e.preventDefault(); const n=el.querySelector('#rankName').value.trim(); if(!n) return;
-      const id=n.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24)||('rank'+Date.now());
-      col.doc(id).set({name:n,color:'#a07bff',perms:{grant:false,moderate:false,manageRoles:false,manageGame:false,editIV:false},order:Object.keys(A.roles).length+1}).then(()=>BF.App.toast('Rank created','good')).catch(err); };
+    // ranks are edited in BeyForge Studio now (presets + per-section access); this is a read-only view so nothing gets out of sync
+    const roles=Object.entries(A.roles).sort((a,b)=>(a[1].order||0)-(b[1].order||0)), studio='https://battlebornplayz.github.io/beyforge/studio/';
+    el.innerHTML=`<p class="dim small">Ranks are created and edited in <b>BeyForge Studio</b>: pick a preset, tick which sections each rank can see or edit, set the badge players see.</p>
+      <div class="ranklist">${roles.map(([id,r])=>`<div class="rankrow ro"><span class="rankbadge" style="--rc:${esc(r.color||'#a07bff')}">${esc(r.badge||r.name)}</span><b>${esc(r.name)}</b>
+        <span class="dim small">${Object.values(r.studio||{}).filter(Boolean).length} Studio sections${r.perms&&r.perms.editIV?' · edits IVs':''}${r.showBadge===false?' · badge hidden':''}</span></div>`).join('')||'<div class="fine">No ranks yet.</div>'}</div>
+      <div class="addrow"><a class="btn primary" href="${studio}#/staff" target="_blank" rel="noopener">Edit ranks in BeyForge Studio ↗</a></div>`;
   },
   players(el){
     el.innerHTML=`<form class="addrow" id="pSearch"><input class="txt sm" id="pQ" placeholder="Search blader name" maxlength="16" autocomplete="off"><button class="btn">Search</button></form><div id="pRes" class="plist"></div>`;

@@ -72,7 +72,7 @@ function fade(obj,a){ obj.traverse(o=>{ const ms=o.material?(Array.isArray(o.mat
 
 // ---------- the overlay ----------
 const PO = BF.PackOpen = {
-  show(parts,pack){
+  show(parts,pack,opts){
     if(!parts||!parts.length) return;
     pack=pack||BF.Packs.get('pack'); this.close(true);
     const best=parts.reduce((a,p)=>lvOf(p.rarity)>lvOf(a)?p.rarity:a,'common'), anyShiny=parts.some(p=>p.shiny), crate=pack.model==='crate';
@@ -86,7 +86,7 @@ const PO = BF.PackOpen = {
       <div class="po-hint" hidden></div><div class="po-plate" hidden></div><div class="po-slam"></div><div class="po-labels"></div><div class="po-sum" hidden></div>
       <div class="po-acts"><button type="button" class="btn primary" data-open>${crate?'Open crate':'Tear open'}</button><button type="button" class="btn ghost" data-skip>Skip</button></div><div class="po-flash"></div>`;
     document.body.appendChild(ov); document.body.classList.add('po-on');
-    const C=this.cur={ov,parts,pack,best,crate,anyShiny,phase:'intro',tw:[],objs:[],order:[],ri:-1,fast:false,shake:0,on:true};
+    const C=this.cur={ov,parts,pack,best,crate,anyShiny,onClose:opts&&opts.onClose,phase:'intro',tw:[],objs:[],order:[],ri:-1,fast:false,shake:0,on:true};
     C.fx=Particles(ov.querySelector('.po-fx'));
     this.scene(); sfx('ui','open');
     // tap anywhere to advance the reveal
@@ -264,7 +264,7 @@ const PO = BF.PackOpen = {
     [...box.children].forEach((el,i)=>{ const o=C.objs[i], u=o.userData, sp=this.screen(o.position.clone().add(new T.Vector3(0,-u.rad*o.scale.x*1.25,0))); el.style.transform=`translate(${sp.x}px,${sp.y}px) translate(-50%,0)`; }); },
   close(silent){ const C=this.cur; if(!C) return; this.cur=null; C.on=false;
     try{ C.r.dispose(); C.r.forceContextLoss(); }catch(e){}
-    C.fx.stop(); C.ov.remove(); document.body.classList.remove('po-on');
+    C.fx.stop(); C.ov.remove(); document.body.classList.remove('po-on'); if(C.onClose&&!silent) setTimeout(C.onClose,100);
     if(!silent){ const pv=document.getElementById('view-parts'); BF.PartsUI&&pv&&!pv.hidden&&BF.PartsUI.render(); BF.Store6&&BF.Store6.render(); } }
 };
 addEventListener('keydown',e=>{ const C=PO.cur; if(!C) return; if(e.key==='Escape'&&C.phase==='summary') PO.close(); if(e.key===' '||e.key==='Enter'){ e.preventDefault(); if(C.phase==='idle'||C.phase==='intro') PO.rip(); else PO.tap(); } });

@@ -150,7 +150,7 @@ const B = BF.BattleUI = {
     this.match=m; this.st='launch'; this.score=[0,0]; this.round=1; this.seed=m.seed; this.lastMoves=[[],[],[]]; this.movesOn=m.moves!==false; this.raid=!!m.raid;
     if(m.prog===false){ [m.d1,m.d2,m.d3].forEach(d=>{ if(d&&d.prog) d.prog={copyIds:d.prog.copyIds,tiers:d.prog.tiers,shiny:d.prog.shiny}; }); }
     this.progOn=m.prog!==false;
-    this.F=[BF.fighter(m.d1,m.n1), m.boss2?BF.bossFighter(m.d2,m.n2,m.bossScale||1.2):BF.fighter(m.d2,m.n2)];
+    this.F=[m.tut?BF.bossFighter(m.d1,m.n1,(BF.Econ&&BF.Econ.get('onboarding').starterBoost)||1.15):BF.fighter(m.d1,m.n1), m.boss2?BF.bossFighter(m.d2,m.n2,m.bossScale||1.2):BF.fighter(m.d2,m.n2)];
     if(this.raid) this.F.push(BF.bossFighter(m.d3,m.n3,m.bossScale||1.45));
     this.me = this.mode==='online' && BF.Net.role==='guest' ? 1 : 0;
     this.arena.setup(m.stadium,...this.F); this.arena.intro();
@@ -237,7 +237,7 @@ const B = BF.BattleUI = {
     }
     this.launches[who]=l;
     if(this.mode==='local' && who===0){ setTimeout(()=>this.launchPanel(1),650); return; }
-    if(this.mode==='cpu') this.launches[1]=BF.MoveAI.launch(this.F[1],this.F[0],this.cpuLv(),this.lastMoves[1]);
+    if(this.mode==='cpu'){ this.launches[1]=BF.MoveAI.launch(this.F[1],this.F[0],this.cpuLv(),this.lastMoves[1]); if(this.match&&this.match.tut){ this.launches[1].power=Math.min(this.launches[1].power||1,0.55); this.launches[1].moves=[]; } }
     if(this.raid) this.launches[2]=BF.MoveAI.launch(this.F[2],this.F[0],'expert',this.lastMoves[2]);
     setTimeout(()=>this.countdown(this.launches,(Math.random()*1e9)|0),500);
   },

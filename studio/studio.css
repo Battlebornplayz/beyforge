@@ -170,3 +170,9 @@ pre.code{background:var(--bg);border:1px solid var(--line);border-radius:6px;pad
 }
 .pvcap .pill{align-self:flex-start}
 .kpi b{white-space:nowrap}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.inp.xs{padding:4px 6px;font-size:12px;width:76px}select.inp.xs{width:130px}
+.tbl.stk td{padding:5px 8px}.tbl.stk tr.jack td{background:rgba(245,197,24,.07)}.tbl.stk td:first-child{width:44px}
+.rwrow{display:grid;grid-template-columns:90px 1fr;gap:12px;align-items:center;border-top:1px solid var(--line);padding-top:8px}.rwrow .pill{justify-self:start}
+.rw{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.rw .fld{margin-bottom:6px}
+@media(max-width:820px){.grid4,.rw{grid-template-columns:1fr 1fr}}

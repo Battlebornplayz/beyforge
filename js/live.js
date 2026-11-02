@@ -76,15 +76,15 @@ const L = BF.Live = {
   },
   // ---------- switches ----------
   feature(k){ const f=this.cfg.features||{}; return f[k]!==false; },
-  guard(k){ if(this.feature(k)||(A()&&A().isStaff&&A().isStaff())) return true; BF.App&&BF.App.toast(`${FEATURES[k]||k} is turned off right now`,'bad'); return false; },
+  guard(k){ if(this.feature(k)||L.bypass()) return true; BF.App&&BF.App.toast(`${FEATURES[k]||k} is turned off right now`,'bad'); return false; },
   mult(k){ const m=this.cfg.mult||{}; if(m.ends&&m.ends<Date.now()) return 1; if(m.starts&&m.starts>Date.now()) return 1; return Math.max(0,+m[k]||1); },
-  bodyFlags(){ const b=document.body; if(!b) return; Object.keys(FEATURES).forEach(k=>b.classList.toggle('off-'+k,!this.feature(k)&&!(A()&&A().isStaff&&A().isStaff())));
+  bodyFlags(){ const b=document.body; if(!b) return; Object.keys(FEATURES).forEach(k=>b.classList.toggle('off-'+k,!this.feature(k)&&!L.bypass()));
     const m=this.cfg.mult||{}, on=['coins','xp','drops'].filter(k=>this.mult(k)>1); let bar=document.getElementById('multBar');
     if(on.length){ if(!bar){ bar=document.createElement('div'); bar.id='multBar'; document.body.appendChild(bar); } bar.textContent=`🔥 ${m.label||'Bonus event'}: ${on.map(k=>`${this.mult(k)}× ${k==='xp'?'XP':k}`).join(' · ')}${m.ends?` · ends ${new Date(m.ends).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}`:''}`; }
     else if(bar) bar.remove(); },
   shell(){ const q=new URLSearchParams(location.search); return {kind:q.get('shell')||'web', build:+(q.get('build')||'0').split('.').pop()||0}; },
   gate(){
-    const a=A(), staff=a&&a.isStaff&&a.isStaff(), m=this.cfg.maintenance||{}, sh=this.shell(), need=(this.cfg.minBuild||{})[sh.kind];
+    const a=A(), staff=L.bypass(), m=this.cfg.maintenance||{}, sh=this.shell(), need=(this.cfg.minBuild||{})[sh.kind];
     let msg=null;
     if(m.on&&!staff) msg={t:'Down for maintenance',b:m.msg||'BeyForge is getting upgraded. Back soon!',until:m.until};
     else if(need&&sh.kind!=='web'&&sh.build&&sh.build<need) msg={t:'Update required',b:'A new version of BeyForge is out. Update to keep playing.',link:'https://github.com/Battlebornplayz/beyforge/releases/latest'};
@@ -96,6 +96,8 @@ const L = BF.Live = {
   }
 };
 BF.feature=k=>L.feature(k);
+// only real staff powers skip maintenance / turned-off features (view-only ranks like Analyst don't)
+L.bypass=()=>{ const a=A(); return !!(a&&(a.isOwner||(a.can&&['manageGame','publish','createContent','grant','moderate'].some(p=>a.can(p))))); };
 
 // ---------- analytics (daily counters, batched) ----------
 const Stats = BF.Stats = {

@@ -58,7 +58,7 @@ jobs:
       - name: Create Capacitor Android project
         run: |
           npm init -y >/dev/null
-          npm install @capacitor/core@6.2.0 @capacitor/cli@6.2.0 @capacitor/android@6.2.0 @capacitor/app@6.0.2 @capacitor/browser@6.0.4
+          npm install @capacitor/core@6.2.0 @capacitor/cli@6.2.0 @capacitor/android@6.2.0 @capacitor/app@6.0.2 @capacitor/browser@6.0.4 @capacitor/local-notifications@6.1.0
           cat > capacitor.config.json <<JSON
           { "appId": "com.battlebornplayz.beyforge", "appName": "BeyForge", "webDir": "www",
             "server": { "url": "${LIVE_URL}?shell=android&build=${{ github.run_number }}", "errorPath": "index.html",

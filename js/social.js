@@ -97,7 +97,7 @@ const S = BF.Social = {
     this.renderInbox(); this.renderFriends(); this.renderLeaderboard();
     if(A.isStaff()) BF.Admin.render($('#adminBox'));
   },
-  rankOf(p,uid){ if(uid&&A.user&&uid===A.user.uid&&A.isOwner) return {name:'Owner',color:'#ffd21f'}; if(p&&p.isOwnerFlag) return {name:'Owner',color:'#ffd21f'}; const r=p&&p.role&&A.roles[p.role]; return r?{name:r.name,color:r.color||'#a07bff'}:null; },
+  rankOf(p,uid){ if(uid&&A.user&&uid===A.user.uid&&A.isOwner) return {name:'Owner',color:'#ffd21f'}; if(p&&p.isOwnerFlag) return {name:'Owner',color:'#ffd21f'}; const r=p&&p.role&&A.roles[p.role]; if(r&&r.showBadge===false) return null; return r?{name:r.badge||r.name,color:r.color||'#a07bff'}:null; },
   renderSignIn(root){
     const app=A.inApp();
     root.innerHTML=`<div class="authcard">
