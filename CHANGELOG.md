@@ -1,5 +1,18 @@
 # BeyForge update log
 
+## V6.8 — Beydex
+- **New Beydex in the Parts tab:** switch between My parts and Beydex to see all 158 parts.
+- **4 layouts, your pick:**
+  - **Store:** cards with search, filters, sorting and pages (the default).
+  - **Binder:** numbered slots grouped into 6 sets.
+  - **Locker:** filters on one side, part details always open on the other.
+  - **Showroom:** one big spinning part at a time.
+- **Missing parts stay a mystery:** you see a black shape and the name. Stats and gimmicks stay hidden until you pull one, and the part page shows which packs drop it, with the odds.
+- **New rewards:** claim rewards for finishing a set and for reaching 10%, 25%, 50%, 75% and 100% of the Beydex.
+- **Pack openings** now show your progress on new parts, like NEW! 48/158.
+- **BeyForge Studio:** set the default layout and every Beydex reward with no code.
+- **Shorter tutorial intro:** the tour no longer talks about 3D printing.
+
 ## V6.7 — Real Parts
 - **158 named parts** inspired by real Beyblade X and Burst parts, all with BeyForge's own names. Packs now drop these instead of random shapes.
 - **Burst for real:**

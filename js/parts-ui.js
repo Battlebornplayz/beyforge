@@ -59,11 +59,18 @@ function partCard(p,extra){
 }
 
 const UI = BF.PartsUI = {
-  filter:'all', sort:'rarity',
+  filter:'all', sort:'rarity', mode:'mine',
+  setMode(m){ this.mode=m; this.render(); const v=$('#view-parts'); if(v) v.scrollTop=0; },
   render(){
     const root=$('#partsRoot'); if(!root||$('#view-parts').hidden) return;
+    const seg=$('#partsMode'), dexBox=$('#dexRoot'), dexOn=this.mode==='dex'&&BF.Dex;
+    if(seg&&!seg._on){ seg._on=true; seg.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>this.setMode(b.dataset.mode)); }
+    if(seg) seg.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===this.mode));
+    root.hidden=!!dexOn; if(dexBox) dexBox.hidden=!dexOn;
     const Pa=P(), A=BF.Account, coins=A&&A.profile?A.profile.coins||0:null;
     $('#partsCoins').innerHTML=coins==null?'Sign in to earn coins':`<b class="coin">${coins}</b> coins · ${Pa.bladerPoints()} blader pts`; BF.App.countCoins($('#partsCoins'));
+    if(dexOn){ BF.Dex.render(dexBox); return; }
+    if(BF.Dex) BF.Dex.killLive();
     if(!Pa.starterDone()){ root.innerHTML=`<div class="starterbox"><h3>Pick your starter</h3><p class="dim">Battle Beys are built from parts you own. Choose a starter Bey — you’ll get its 3 parts plus a box of 3 extra commons.</p><div class="startergrid" id="starterGrid"><span class="netwait">Loading starters…</span></div></div>`; this.starters(); return; }
     const rarOrder=['limited','legendary','epic','rare','common'];
     let list=Pa.list.filter(p=>this.filter==='all'||p.slot===this.filter);

@@ -1,4 +1,4 @@
-# BeyForge — session handoff (2026-11-02)
+# BeyForge — session handoff (2026-11-02, updated after V6.8)
 
 **To continue in a new session, say:** "Continue BeyForge. Read docs/HANDOFF.md first."
 
@@ -44,21 +44,35 @@
   - `js/battle.js`: gimmick physics in the sim (`f.g` flags), Burst Attack/Tornado stadiums. Blade mode toggle in the launch UI.
   - New packs: `burst`, `xbooster`, `burstcrate` (pack `system` field).
 
+- **V6.8 (Beydex):**
+  - `js/dex.js`: 4 switchable layouts (`grid` default, `binder`, `locker`, `show`), lazy thumbnails, live 3D. The player's layout is saved per device.
+  - Missing parts: black silhouette + name, with stats and gimmicks hidden.
+  - Stats are measured in the background and cached per device (`bf.dexStats.v68`). **Bump that key when physics or the catalog change.**
+  - Rewards: `BF.Econ` `dex` config (Studio → Rewards & economy → Beydex). Claims are saved on the profile as `dexClaims`.
+  - `BF.Catalog.pool` is shared by pack rolls and the odds shown on part pages.
+  - The tutorial no longer mentions 3D printing (owner's request).
+
+## Known issues
+- **Official names and printing still in the game.** Not cleaned up in V6.8:
+  - "Beyblade": `manifest.webmanifest`, the X Booster description in `js/packs.js`, `js/ui.js` (Generation option, ID card), `js/export.js`, `js/terrain.js`, and others (grep to get them all).
+  - Printing: the Home tile says "Design & print", and the manifest description mentions 3D printing.
+- **Look-alike parts:** all bits and drivers are the same pink, and some discs match across rarities (Enigma Disc = 0 Disc).
+- **Pack duplicate protection** in `BF.Packs.open` compares generated names, but the catalog hook then swaps in a different part, so it likely no longer works. Check it.
+
+## Previewing work in the Claude desktop browser pane
+The pane can't open a server in the cloud container. Push a test branch and open `https://rawcdn.githack.com/Battlebornplayz/beyforge/<full commit sha>/index.html`. The first visit shows a notice page to click through. Sign-in won't work there. The owner chose this way of watching.
+
 ## Next up (in order)
-1. **Parts browser / Beydex page.**
-   - The owner wants it to look like a card-grid store UI. He gave ScriptBlox as a *visual* reference only.
-   - **First show him 3–5 mockup options** (inline visuals or a quick design) and let him pick.
-   - A draft is already written: `js/dex.js` (`BF.Dex`, `BF.DexThumb`). It is NOT loaded in index.html yet. It needs a "My parts | Beydex" toggle in the Parts tab (`#dexRoot`) plus CSS.
-2. **Rest of E2:**
+1. **Rest of E2:**
    - Forge Shards (duplicates → shards → craft or level a specific catalog part).
    - Evolutions (max-level part → new look + stronger signature).
    - Masteries (wins per part → titles and frames).
    - A visuals/animation pass.
    - Studio pages to tune all of it.
    - Also: add the pack `system` field to the Studio pack editor, and add a catalog editor to Studio.
-3. **E3:** finisher replays, in-battle bounties, ghost battles, steal-a-part, weekly leagues, showcase likes.
-4. **E4:** monthly seasons + free pass, event modes, weekly tournaments, quest chains + mystery chest. The rank overhaul from STUDIO_DESIGN.md merges in here: metal tiers + RP, placements, 3D emblems, rank-up cinematic, Lv100 + prestige.
-5. **Studio wave 2 items:** events, redeem codes, mass gifts, news/pop-ups, balance sliders + simulator, testing tools, uploads, feedback, planning board, anti-cheat, alerts.
+2. **E3:** finisher replays, in-battle bounties, ghost battles, steal-a-part, weekly leagues, showcase likes.
+3. **E4:** monthly seasons + free pass, event modes, weekly tournaments, quest chains + mystery chest. The rank overhaul from STUDIO_DESIGN.md merges in here: metal tiers + RP, placements, 3D emblems, rank-up cinematic, Lv100 + prestige.
+4. **Studio wave 2 items:** events, redeem codes, mass gifts, news/pop-ups, balance sliders + simulator, testing tools, uploads, feedback, planning board, anti-cheat, alerts.
 
 ## Testing approach
 - Headless Playwright with swiftshader, from scripts in the scratchpad.

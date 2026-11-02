@@ -182,9 +182,10 @@ const Cat=BF.Catalog={
   get(id){ return CAT.find(c=>c.id===id); },
   design(id){ const c=this.get(id); if(!c) return null; c._d=c._d||c.make(); return BF.normalize(BF.clone(c._d)); },
   // pick a catalog part of this rarity/slot/system (closest rarity if that bucket is empty)
-  pick(rarity,slot,sys){ let pool=CAT.filter(c=>c.slot===slot&&(!sys||c.sys===sys)&&c.rarity===rarity);
+  pool(rarity,slot,sys){ let pool=CAT.filter(c=>c.slot===slot&&(!sys||c.sys===sys)&&c.rarity===rarity);
     for(let k=1;!pool.length&&k<4;k++){ const lo=RAR[RAR.indexOf(rarity)-k], hi=RAR[RAR.indexOf(rarity)+k]; pool=CAT.filter(c=>c.slot===slot&&(!sys||c.sys===sys)&&(c.rarity===lo||c.rarity===hi)); }
-    if(!pool.length) pool=CAT.filter(c=>c.slot===slot&&(!sys||c.sys===sys)); return pool[Math.floor(Math.random()*pool.length)]; },
+    if(!pool.length) pool=CAT.filter(c=>c.slot===slot&&(!sys||c.sys===sys)); return pool; },
+  pick(rarity,slot,sys){ const pool=this.pool(rarity,slot,sys); return pool[Math.floor(Math.random()*pool.length)]; },
   owned(){ const s=new Map(); ((BF.Parts&&BF.Parts.list)||[]).forEach(p=>{ if(p.catId) s.set(p.catId,(s.get(p.catId)||0)+1); }); return s; },
   progress(sys){ const own=this.owned(), list=CAT.filter(c=>!sys||c.sys===sys); return {have:list.filter(c=>own.has(c.id)).length,total:list.length}; }
 };

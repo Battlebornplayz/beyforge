@@ -78,6 +78,7 @@ const PO = BF.PackOpen = {
     const best=parts.reduce((a,p)=>lvOf(p.rarity)>lvOf(a)?p.rarity:a,'common'), anyShiny=parts.some(p=>p.shiny), crate=pack.model==='crate';
     // NEW = you didn't already own a part with that name before this pack
     const ids=new Set(parts.map(p=>p.id)), owned=new Set(((BF.Parts&&BF.Parts.list)||[]).filter(x=>!ids.has(x.id)).map(x=>x.name)); parts.forEach(p=>p._new=!owned.has(p.name));
+    if(BF.Catalog&&BF.CATALOG){ const seen=new Set(((BF.Parts&&BF.Parts.list)||[]).filter(x=>!ids.has(x.id)&&x.catId).map(x=>x.catId)); parts.forEach(p=>{ if(p.catId&&!seen.has(p.catId)){ seen.add(p.catId); p._dexN=`${seen.size}/${BF.CATALOG.length}`; } }); }
     const ov=document.createElement('div'); ov.id='packOpen'; ov.className=`po r-${best}${anyShiny?' shiny':''}`; ov.style.setProperty('--rc',R(best).color);
     ov.style.setProperty('--c1',(pack.colors&&pack.colors[0])||'#2ef2ff'); ov.style.setProperty('--c2',(pack.colors&&pack.colors[1])||'#ff2e88');
     ov.innerHTML=`<div class="po-bg"></div><div class="po-dim"></div><canvas class="po-3d"></canvas><canvas class="po-fx"></canvas>
@@ -233,7 +234,7 @@ const PO = BF.PackOpen = {
   plate(p){ const el=this.cur&&this.cur.ov.querySelector('.po-plate'); if(!el) return; if(!p){ el.hidden=true; return; }
     const rr=R(p.rarity), iv=p.iv||{}, tot=Object.values(iv).reduce((a,b)=>a+b,0), el2=(()=>{ try{ const Pa=BF.Parts, PU=BF.PartsUI; const d=Pa.assemble(['blade','core','driver'].map(s=>s===p.slot?p:PU.dummy(s,p.system))); const e=BF.ELEMENTS[BF.partElements(d)[p.slot]]; return e?`${e.icon} ${e.label}`:''; }catch(e){ return ''; } })();
     el.style.setProperty('--rc',rr.color); el.className='po-plate'+(p.shiny?' shiny':'');
-    el.innerHTML=`<span class="pp-r">${rr.label}${p.shiny?' · ✨ SHINY':''}${p._new?'<em class="pp-new">NEW!</em>':''}</span><b>${esc(p.name)}</b>
+    el.innerHTML=`<span class="pp-r">${rr.label}${p.shiny?' · ✨ SHINY':''}${p._new?'<em class="pp-new">NEW!'+(p._dexN?' '+p._dexN:'')+'</em>':''}</span><b>${esc(p.name)}</b>
       <span class="pp-sub">${esc(BF.PART_LABEL[p.slot]||p.slot)}${el2?' · '+el2:''}</span>
       <span class="pp-iv">${Object.entries(iv).map(([k,v])=>`<i class="g-${BF.ivGrade(v)}" title="${k}">${(BF.PSTATS&&BF.PSTATS[k]||k).slice(0,3).toUpperCase()} <b>${v}</b></i>`).join('')}<em>${Math.round(tot/155*100)}%</em></span>`;
     el.hidden=false; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in'); },
@@ -260,7 +261,7 @@ const PO = BF.PackOpen = {
     sfx('ui','coin');
   },
   labels(){ const C=this.cur, box=C.ov.querySelector('.po-labels');
-    if(!C._lab){ C._lab=true; box.innerHTML=C.objs.map(o=>{ const p=o.userData.p; return `<div class="po-lab" style="--rc:${R(p.rarity).color}">${p._new?'<em>NEW</em>':''}<b>${p.shiny?'✨ ':''}${esc(p.name)}</b><span>${R(p.rarity).label}</span></div>`; }).join(''); }
+    if(!C._lab){ C._lab=true; box.innerHTML=C.objs.map(o=>{ const p=o.userData.p; return `<div class="po-lab" style="--rc:${R(p.rarity).color}">${p._new?'<em>NEW'+(p._dexN?' '+p._dexN:'')+'</em>':''}<b>${p.shiny?'✨ ':''}${esc(p.name)}</b><span>${R(p.rarity).label}</span></div>`; }).join(''); }
     [...box.children].forEach((el,i)=>{ const o=C.objs[i], u=o.userData, sp=this.screen(o.position.clone().add(new T.Vector3(0,-u.rad*o.scale.x*1.25,0))); el.style.transform=`translate(${sp.x}px,${sp.y}px) translate(-50%,0)`; }); },
   close(silent){ const C=this.cur; if(!C) return; this.cur=null; C.on=false;
     try{ C.r.dispose(); C.r.forceContextLoss(); }catch(e){}

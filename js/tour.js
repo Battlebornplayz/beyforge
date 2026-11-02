@@ -4,17 +4,17 @@
 const BF=window.BF, $=s=>document.querySelector(s);
 const tab=t=>{ const b=document.querySelector(`#tabs [data-tab=${t}]`); if(b&&!b.classList.contains('on')) b.click(); };
 const STEPS=[
-  {title:'Welcome to BeyForge',text:'Design your own Beyblade X or Burst Beys, 3D-print them on the Creator 5 Pro, and battle your friends online. This takes about a minute — hit Next.'},
+  {title:'Welcome to BeyForge',text:'Design your own Beys and battle your friends online. This takes about a minute — hit Next.'},
   {tab:'forge',sel:'#viewport',title:'Your Bey, live in 3D',text:'Drag to spin the camera, scroll or pinch to zoom. Tap a part to jump straight to its settings. The toolbar shows exploded view, a cut-in-half section and a stadium preview.'},
   {tab:'forge',sel:'#controls',title:'Build it your way',text:'Easy mode gives you picture grids and themes. Switch to Pro for every slider, sculpting, per-wing shapes, cutouts and the full paint studio.'},
-  {tab:'forge',sel:'#sheet',title:'Stats and printing',text:'Here are the weight, type and stats, plus print checks. Save it to your library, make a trading card, share a code, and export STL or 3MF files for the printer.'},
+  {tab:'forge',sel:'#sheet',title:'Stats and sharing',text:'Here are the weight, type and stats. Save it to your library, make a trading card or share a code.'},
   {tab:'battle',sel:'#tabs [data-tab=battle]',title:'Battle',text:'Aim your launch, pick a shot and a move from each part (your launch formation), then tap moves and tap the stadium to lean mid-fight. Fight the CPU (Easy to Expert), a friend on one screen, or online with a 4-letter code.'},
   {tab:'library',sel:'#libSeg',title:'Library and Gallery',text:'Your saved Beys live here. Flip to Gallery to grab Beys other players published, or paste a share code someone sent you.'},
   {tab:'parts',sel:'#tabs [data-tab=parts]',title:'Parts',text:'Own parts to battle online: grab your free starter, open packs, mint parts from the Forge, level them up, spend EVs and build ⚔ Battle Beys. Every copy has its own locked IVs — hunt for shinies and legendaries.'},
   {tab:'battle',sel:'#tabs [data-tab=battle]',title:'Adventure',text:'In Battle → Adventure: climb the 30-floor Tower, beat the 10 element gyms for badges, take on the weekly boss, and team up with a friend in co-op raids. Achievements unlock Limited parts.'},
   {tab:'shop',sel:'#tabs [data-tab=shop]',title:'Shop',text:'Win battles to earn coins (plus a daily bonus), then unlock finishes, patterns, stickers, spin trails, auras, win animations and card styles.'},
   {tab:'profile',sel:'#tabs [data-tab=profile]',title:'Your Blader profile',text:'Sign in with Google or a username to save everything to your account. Add friends, chat, send invites, gift Beys and trade.'},
-  {sel:'#settingsBtn',title:'Settings',text:'Every option lives here: round length, battle format, graphics quality, effects, sound and your filament shelf. You can restart this tour from here too.'},
+  {sel:'#settingsBtn',title:'Settings',text:'Every option lives here: round length, battle format, graphics quality, effects and sound. You can restart this tour from here too.'},
   {tab:'forge',title:'Let it rip!',text:'That’s the tour. Hit Random in the Forge if you want a quick place to start.'}
 ];
 BF.Tour = {
