@@ -7,7 +7,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const DEFAULTS = {
   mode:'easy', preview:'paint', printChecks:true, autoSpin:true,
   roundLength:'normal', roundCustom:1, format:'official', customTarget:5, customPoints:'official',
-  cosmetics:true, trails:true, particles:true, shake:true, quality:'high', shadows:true,
+  cosmetics:true, bloom:true, trails:true, particles:true, shake:true, quality:'high', shadows:true,
   sound:true, volume:0.6,
   tour:true, filament:[
     {name:'Black PLA', color:'#16171f', material:'PLA'}, {name:'White PLA', color:'#f2f4f8', material:'PLA'},
@@ -66,6 +66,7 @@ BF.Settings = {
       </section>
       <section><h4>Visuals</h4>
         ${tog('cosmetics','Battle cosmetics','Trails, auras, launch and win effects.')}
+        ${tog('bloom','HD glow (bloom)','Neon glow and smoother edges. Turn off on slow phones.')}
         ${tog('particles','Sparks & particles')}
         ${tog('shake','Screen shake on big hits')}
         ${tog('shadows','Shadows')}

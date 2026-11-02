@@ -65,6 +65,8 @@ const B = BF.BattleUI = {
       else if(net.status==='connecting') onlineHtml=`<div class="netbox"><div class="netwait">Connecting…</div><button class="btn ghost" id="netCancel">Cancel</button></div>`;
       else if(net.status==='waiting') onlineHtml=`<div class="netbox"><div class="dim">Tell your friend this code</div><div class="bigcode">${esc(net.code)}</div><div class="netwait">Waiting for them to join…</div><button class="btn ghost" id="netCancel">Cancel</button></div>`;
       else if(net.status==='connected') onlineHtml=`<div class="netbox"><div class="netok">Connected${net.code?' · room '+esc(net.code):''}</div>
+          ${net.role==='host'?`<div class="seg sm" id="queueSeg"><button type="button" class="${this.queue!=='ranked'?'on':''}" data-q="casual">Casual</button><button type="button" class="${this.queue==='ranked'?'on':''}" data-q="ranked">Ranked</button></div>`:''}
+          ${this.queue==='ranked'||net.role!=='host'?this.rankedLine():''}
           <div class="vs-line"><b class="c1">${esc(this.myName())}</b><span>vs</span><b class="c2">${esc(this.remote?this.remote.name:'waiting for their Bey…')}</b></div>
           ${net.role==='host'?`<button class="btn primary wide" id="startBtn"${this.remote?'':' disabled'}>Start match</button>`:`<div class="netwait">Waiting for the host to start…</div>`}
           <button class="btn ghost" id="netCancel">Leave</button></div>`;
@@ -93,8 +95,11 @@ const B = BF.BattleUI = {
     const jc=$('#joinCode'); if(jc) jc.oninput=()=>{ jc.value=jc.value.toUpperCase().replace(/[^A-Z]/g,''); };
     const nc=$('#netCancel'); if(nc) nc.onclick=()=>{ BF.Net.close(); this.remote=null; this.renderSetup(); };
     const sb=$('#startBtn'); if(sb) sb.onclick=()=>this.hostStart();
+    this.panel.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{ if(b.dataset.q==='ranked'&&!(BF.Account.profile)) return BF.App.toast('Sign in (Blader tab) to play ranked','bad'); this.queue=b.dataset.q; this.renderSetup(); });
     this.previewArena();
   },
+  rankedLine(){ if(!BF.Ranked) return ''; const issues=BF.Ranked.check(this.myDesign());
+    return `<div class="rankedbox"><b>RANKED</b> <span>${esc(BF.Ranked.summary())}</span>${issues.length?`<ul class="issues">${issues.map(i=>`<li class="iss warn">${esc(i)}</li>`).join('')}</ul>`:'<span class="netok">✓ Your Bey is ranked-legal</span>'}</div>`; },
   rulesLine(){ const r=BF.Settings.rulesFor(this.stadiumKind), p=r.pts; const allOne=Object.values(p).every(v=>v===1);
     return `First to ${r.target} ${allOne?'round wins':'points'}${allOne?'':` · Spin ${p.spin} · Over ${p.over} · Burst ${p.burst}${this.stadiumKind==='X'?` · Xtreme ${p.xtreme}`:''}`}`; },
   recordLine(){ const r=BF.Records.get(); if(!r.matches) return ''; return `<div class="record">Record <b>${r.wins}–${r.losses}</b>${r.online.wins+r.online.losses?` · online ${r.online.wins}–${r.online.losses}`:''}</div>`; },
@@ -105,6 +110,7 @@ const B = BF.BattleUI = {
   },
   stadium(){ return Object.assign({},BF.STADIUMS[this.stadiumKind],{diameter:this.size}); },
   onNet({s,info}){
+    if(this._inviteHook) this._inviteHook({s,info});
     if(s==='error'){ this.netErr=info; }
     if(s==='connected'){ BF.Net.send({t:'hello',design:this.myDesign(),name:this.myName()}); }
     if(s==='closed' && this.st!=='setup'){ BF.App.toast('Your opponent disconnected','bad'); this.st='setup'; }
@@ -116,7 +122,10 @@ const B = BF.BattleUI = {
     const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
   },
   hostStart(){
-    const st=this.stadium(); const m={t:'start', stadium:st, rules:BF.Settings.rulesFor(st.kind), decayK:BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
+    const ranked=this.queue==='ranked';
+    if(ranked){ const a=BF.Ranked.check(this.myDesign()), b=BF.Ranked.check(this.remote.design);
+      if(a.length||b.length){ BF.App.toast((a.length?'Your Bey: '+a[0]:this.remote.name+': '+b[0])+' — not ranked-legal','bad'); return; } }
+    const st=ranked?BF.Ranked.stadium():this.stadium(); const m={t:'start', ranked, stadium:st, rules:ranked?BF.Ranked.matchRules():BF.Settings.rulesFor(st.kind), decayK:ranked?BF.Ranked.decayK():BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
     BF.Net.send(m); this.startMatch(m);
   },
   startMatch(m){
@@ -212,7 +221,7 @@ const B = BF.BattleUI = {
   matchEnd(){
     this.st='matchEnd'; const win=this.score[0]>this.score[1]?0:1; const ban=$('#banner'); ban.hidden=true;
     let line='';
-    if(this.mode!=='local'){ const won=win===this.me; const rec=BF.Records.add(won,this.lastHow||'spin',this.F[this.me].name,this.mode==='online'); line=`<div class="record">${won?'Victory':'Defeat'} · record ${rec.wins}–${rec.losses}</div>`; BF.Ach && BF.Ach.check({won,how:this.lastHow,score:this.score,me:this.me,mode:this.mode,f:this.F[this.me]}); }
+    if(this.mode!=='local'){ const won=win===this.me; const rec=BF.Records.add(won,this.lastHow||'spin',this.F[this.me].name,this.mode==='online',!!(this.match&&this.match.ranked)); line=`<div class="record">${won?'Victory':'Defeat'} · record ${rec.wins}–${rec.losses}</div>`; BF.Ach && BF.Ach.check({won,how:this.lastHow,score:this.score,me:this.me,mode:this.mode,f:this.F[this.me]}); }
     this.panel.className='bpanel result';
     this.panel.innerHTML=`<div class="res-title ${win===0?'c1':'c2'}">${esc(this.F[win].name)} wins</div>
       <div class="res-score"><b class="c1">${this.score[0]}</b><span>–</span><b class="c2">${this.score[1]}</b></div>${line}

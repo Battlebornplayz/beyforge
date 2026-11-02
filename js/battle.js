@@ -180,7 +180,7 @@ BF.Arena = class {
     [[0,0,90,0xffffff,4],[-90,20,20,0x2ef2ff,3],[90,-20,30,0xff2e88,3]].forEach(([x,y,z,c,k])=>{ const p=new T.Mesh(new T.PlaneGeometry(120,60),new T.MeshBasicMaterial({color:new T.Color(c).multiplyScalar(k),side:T.DoubleSide})); p.position.set(x,y,z); p.lookAt(0,0,0); es.add(p); });
     s.environment=pm.fromScene(es,0.03).texture;
     s.add(new T.HemisphereLight(0xb8c6ff,0x150a20,0.4));
-    const key=new T.DirectionalLight(0xffffff,1.4); key.position.set(120,-160,420); key.castShadow=true; key.shadow.mapSize.set(2048,2048);
+    const key=new T.DirectionalLight(0xffffff,1.4); key.position.set(120,-160,420); key.castShadow=true; key.shadow.mapSize.set(4096,4096); key.shadow.radius=3;
     Object.assign(key.shadow.camera,{left:-220,right:220,top:220,bottom:-220,near:50,far:900}); s.add(key);
     const c1=new T.PointLight(0x2ef2ff,1.4,900); c1.position.set(-260,120,120); s.add(c1);
     const c2=new T.PointLight(0xff2e88,1.4,900); c2.position.set(260,-120,120); s.add(c2);
@@ -270,7 +270,7 @@ BF.Arena = class {
     const cam=this.camera, base=cam.position.clone();
     if(BF.Settings&&!BF.Settings.get('shake')) this.shake=0;
     if(this.shake>0.05){ cam.position.x+=(Math.random()-0.5)*this.shake; cam.position.y+=(Math.random()-0.5)*this.shake; this.shake*=Math.pow(0.02,dt); }
-    this.renderer.render(this.scene,cam); cam.position.copy(base);
+    BF.HD.render(this,this.renderer,this.scene,cam); cam.position.copy(base);
   }
   burstFx(i){ const v=this.beys[i]; if(!v) return; const p=v.root.position;
     v.f.asm.parts.forEach((part,k)=>{ const g=beyGroup({...v.f.asm,parts:[part]}); g.position.copy(p); g.position.z+=part.z0+6; this.scene.add(g);

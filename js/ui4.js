@@ -187,7 +187,7 @@ function catalog(d,onChange){
   let src=cur==='mine'?mine:cur==='blade'?cat.blade:cur==='bit'?cat.bit:(X(d)?cat.ratchet:cat.disc);
   if(cur==='mine' && !src.length) list.appendChild(el('div','fine','Nothing saved yet. Save the parts you make and reuse them on any Bey.'));
   src.forEach((p,ix)=>{ const r=el('div','shopitem'); const b=el('button','shopbtn',`<b>${esc(p.name)}</b><span>${esc(p.src||p.kind||'')}</span>`); b.type='button'; b.onclick=()=>apply(p.data,p.name); r.appendChild(b);
-    if(cur==='mine'){ const x=el('button','icon-x','×'); x.type='button'; x.title='Delete part'; x.onclick=()=>{ mine.splice(ix,1); BF.LS.set('bf.myparts',mine); BF.App.renderControls(); }; r.appendChild(x); }
+    if(cur==='mine'){ const x=el('button','icon-x','×'); x.type='button'; x.title='Delete part'; x.onclick=()=>{ mine.splice(ix,1); BF.LS.set('bf.myparts',mine); BF.Account&&BF.Account.pushParts(); BF.App.renderControls(); }; r.appendChild(x); }
     list.appendChild(r); });
   w.appendChild(list);
   // save current parts
@@ -195,7 +195,7 @@ function catalog(d,onChange){
   const kinds={blade:'blade',core:X(d)?'ratchet':'disc',bit:'bit'}; const which=el('select'); Object.entries({blade:X(d)?'Blade':'Layer',core:X(d)?'Ratchet':'Disc',bit:X(d)?'Bit':'Driver'}).forEach(([k,l])=>{ const o=el('option','','Save my '+l.toLowerCase()); o.value=k; which.appendChild(o); });
   const btn=el('button','btn','Save'); btn.type='button';
   btn.onclick=()=>{ const k=kinds[which.value]; const data={}; data[k]=BF.clone(d[k]); if(k==='blade') data.paint={blade:BF.clone(d.paint.blade)}; if(k==='bit') data.paint={bit:BF.clone(d.paint.bit),tip:BF.clone(d.paint.tip)};
-    mine.unshift({name:nm.value.trim()||('My '+k), kind:k, data, src:'My '+k}); BF.LS.set('bf.myparts',mine.slice(0,80)); U.shopTab='mine'; BF.App.renderControls(); BF.App.toast('Part saved'); };
+    mine.unshift({name:nm.value.trim()||('My '+k), kind:k, data, src:'My '+k}); BF.LS.set('bf.myparts',mine.slice(0,80)); BF.Account&&BF.Account.pushParts(); U.shopTab='mine'; BF.App.renderControls(); BF.App.toast('Part saved'); };
   save.appendChild(which); save.appendChild(nm); save.appendChild(btn); w.appendChild(save);
   return w;
 }

@@ -26,8 +26,11 @@ const App = BF.App = {
     this.bindToolbar(); this.bindTabs(); this.bindKeys(); this.bindFolder(); this.bindModal();
     const mb=$('#muteBtn'); const pm=()=>mb.classList.toggle('muted',BF.Sfx.muted); pm(); mb.addEventListener('click',()=>{ BF.Sfx.toggle(); pm(); });
     BF.Store.init();
+    BF.Social.init(); BF.Account.init();
+    $('#annX').addEventListener('click',()=>{ $('#announce').hidden=true; BF.LS.set('bf.announceSeen',this._ann||''); });
     this.logo();
   },
+  announce(text){ this._ann=text; $('#annMsg').textContent=text; $('#announce').hidden=false; },
   toast(msg,kind){ const t=$('#toast'); t.textContent=msg; t.className='toast show '+(kind||''); clearTimeout(this._tt); this._tt=setTimeout(()=>t.className='toast',2600); },
   snapshot(){ return JSON.stringify(this.d); },
   push(){ const now=performance.now(); if(now-this.lastPush>700){ this.hist.push(this.snapshot()); if(this.hist.length>80) this.hist.shift(); this.fut=[]; } this.lastPush=now; },
@@ -128,6 +131,7 @@ const App = BF.App = {
       document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!=='view-'+b.dataset.tab);
       if(b.dataset.tab==='library') this.renderLibrary();
       if(b.dataset.tab==='forge') this.viewer.resize();
+      if(b.dataset.tab==='profile') BF.Social.render();
       if(b.dataset.tab==='battle'){ if(!BF.BattleUI.arena) BF.BattleUI.init(); BF.BattleUI.show(); }
     }));
   },

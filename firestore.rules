@@ -18,7 +18,7 @@ service cloud.firestore {
     }
     function can(p) { return isOwner() || perms().get(p, false) == true; }
     // fields only staff may change on a profile
-    function staffFields() { return ['role', 'banned']; }
+    function staffFields() { return ['role', 'banned', 'isOwnerFlag']; }
     function notBanned() { return !exists(/databases/$(database)/documents/users/$(me())) || profile().get('banned', false) != true; }
 
     // ---- ranks / roles: everyone can read, only owner or "manageRoles" staff can edit ----

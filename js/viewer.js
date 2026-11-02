@@ -66,16 +66,18 @@ BF.Viewer = class {
     // lights
     s.add(new T.HemisphereLight(0xb8c6ff,0x150a20,0.35));
     const key=this.key=new T.DirectionalLight(0xffffff,1.5); key.position.set(60,-80,160); key.castShadow=true;
-    key.shadow.mapSize.set(2048,2048); Object.assign(key.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:10,far:400}); key.shadow.bias=-0.0004;
+    key.shadow.mapSize.set(4096,4096); Object.assign(key.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:10,far:400}); key.shadow.bias=-0.0004;
     s.add(key);
     const c1=new T.PointLight(0x2ef2ff,1.2,500); c1.position.set(-120,60,40); s.add(c1);
     const c2=new T.PointLight(0xff2e88,1.2,500); c2.position.set(120,80,30); s.add(c2);
     // floor
     const floor=this.floor=new T.Group();
-    const disk=new T.Mesh(new T.CircleGeometry(220,96), new T.MeshLambertMaterial({color:0x08070f}));
+    const disk=new T.Mesh(new T.CircleGeometry(220,128), new T.MeshStandardMaterial({color:0x8a86b0,map:BF.forgeFloorTexture(),roughness:0.6,metalness:0.1,envMapIntensity:0.2}));
+    { const p=disk.geometry.attributes.position.array, uv=disk.geometry.attributes.uv.array; for(let i=0,j=0;i<p.length;i+=3,j+=2){ uv[j]=p[i]/(2*120)+0.5; uv[j+1]=p[i+1]/(2*120)+0.5; } }
+    disk.material.map.wrapS=disk.material.map.wrapT=T.ClampToEdgeWrapping;
     disk.receiveShadow=true; floor.add(disk);
-    const grid=new T.PolarGridHelper(200,16,8,96,0x2a2552,0x1a1735); grid.rotateX(Math.PI/2); grid.position.z=0.05; floor.add(grid);
-    const glow=new T.Mesh(new T.RingGeometry(34,35,128), new T.MeshBasicMaterial({color:0x2ef2ff,transparent:true,opacity:0.6})); glow.position.z=0.1; floor.add(glow);
+
+    const glow=new T.Mesh(new T.RingGeometry(34,35.2,160), new T.MeshStandardMaterial({color:0x000000,emissive:0x2ef2ff,emissiveIntensity:2,transparent:true,opacity:0.6})); glow.position.z=0.1; floor.add(glow);
     this.glow=glow; s.add(floor);
     // rig
     this.rig=new T.Group(); s.add(this.rig);
@@ -155,7 +157,7 @@ BF.Viewer = class {
     if(st.stadium && this.stadium){ this.rig.position.z=0; }
     this.glow.material.opacity=0.45+0.2*Math.sin(t*2);
     this.controls.update();
-    this.renderer.render(this.scene,this.camera);
+    BF.HD.render(this,this.renderer,this.scene,this.camera);
   }
 };
 })();
