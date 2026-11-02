@@ -1,0 +1,99 @@
+rules_version = '2';
+// BeyForge security rules. Paste into Firebase console → Firestore Database → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    // The owner is the Google account below. Google sign-in emails are verified, so this can't be faked.
+    function isOwner() {
+      return signedIn() && request.auth.token.email == 'battlebornplayz@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function profile() { return get(/databases/$(database)/documents/users/$(me())).data; }
+    function roleOf() { return exists(/databases/$(database)/documents/users/$(me())) ? profile().get('role', 'player') : 'player'; }
+    function perms() {
+      return exists(/databases/$(database)/documents/roles/$(roleOf()))
+        ? get(/databases/$(database)/documents/roles/$(roleOf())).data.get('perms', {}) : {};
+    }
+    function can(p) { return isOwner() || perms().get(p, false) == true; }
+    // fields only staff may change on a profile
+    function staffFields() { return ['role', 'banned']; }
+    function notBanned() { return !exists(/databases/$(database)/documents/users/$(me())) || profile().get('banned', false) != true; }
+
+    // ---- ranks / roles: everyone can read, only owner or "manageRoles" staff can edit ----
+    match /roles/{roleId} {
+      allow read: if signedIn();
+      allow write: if can('manageRoles');
+    }
+
+    // ---- unique usernames (for username + password logins) ----
+    match /usernames/{name} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.uid == me();
+      allow delete: if signedIn() && resource.data.uid == me() || can('moderate');
+    }
+
+    // ---- profiles: public to signed-in players, editable by the owner of the profile ----
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && uid == me()
+        && !request.resource.data.keys().hasAny(staffFields());
+      allow update: if signedIn() && (
+          (uid == me() && notBanned() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(staffFields()))
+          || can('grant') );
+      allow delete: if uid == me() || isOwner();
+
+      // saved Beys: private unless marked public
+      match /beys/{beyId} {
+        allow read: if signedIn() && (uid == me() || resource.data.get('public', false) == true || can('moderate'));
+        allow write: if signedIn() && uid == me();
+      }
+      // friends list entries
+      match /friends/{fid} {
+        allow read: if signedIn() && (uid == me() || fid == me());
+        allow write: if signedIn() && (uid == me() || fid == me());
+      }
+      // inbox: friend requests, battle invites, gifted Beys, trade offers
+      match /inbox/{msgId} {
+        allow read, delete: if signedIn() && uid == me();
+        allow create: if signedIn() && notBanned() && request.resource.data.from == me();
+        allow update: if signedIn() && uid == me();
+      }
+    }
+
+    // ---- public Bey gallery ----
+    match /gallery/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && notBanned() && request.resource.data.author == me();
+      allow update: if signedIn() && (resource.data.author == me() || can('moderate')
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'downloads']));
+      allow delete: if signedIn() && (resource.data.author == me() || can('moderate'));
+    }
+
+    // ---- direct-message chats between two players (chatId = sorted uids joined by "_") ----
+    match /chats/{chatId} {
+      function inChat() { return signedIn() && me() in chatId.split('_'); }
+      allow read, write: if inChat() || can('moderate');
+      match /messages/{mid} {
+        allow read: if inChat() || can('moderate');
+        allow create: if inChat() && notBanned() && request.resource.data.from == me()
+          && request.resource.data.text is string && request.resource.data.text.size() <= 500;
+        allow delete: if signedIn() && (resource.data.from == me() || can('moderate'));
+      }
+    }
+
+    // ---- trades ----
+    match /trades/{id} {
+      allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me() || can('moderate'));
+      allow create: if signedIn() && notBanned() && request.resource.data.from == me();
+      allow update: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+    }
+
+    // ---- app-wide settings & announcements (owner/staff) ----
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if can('manageGame');
+    }
+  }
+}
