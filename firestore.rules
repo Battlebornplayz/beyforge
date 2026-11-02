@@ -73,7 +73,14 @@ service cloud.firestore {
       // inbox: friend requests, battle invites, gifted Beys, trade offers
       match /inbox/{msgId} {
         allow read, delete: if signedIn() && uid == me();
-        allow create: if signedIn() && notBanned() && request.resource.data.from == me();
+        // a shop gift must be paid for in the same batch: the sender's coins drop by exactly its cost
+        function paidGift() {
+          return request.resource.data.get('type', '') != 'giftItem'
+            || (request.resource.data.cost is int && request.resource.data.cost > 0 && uid != me()
+                && getAfter(/databases/$(database)/documents/users/$(me())).data.coins
+                   == get(/databases/$(database)/documents/users/$(me())).data.coins - request.resource.data.cost);
+        }
+        allow create: if signedIn() && notBanned() && request.resource.data.from == me() && paidGift();
         allow update: if signedIn() && uid == me();
       }
     }

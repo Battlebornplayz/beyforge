@@ -103,14 +103,14 @@ const Adv = BF.Adventure = {
     if(adv.kind==='tower'){ const n=adv.id; if(n>d.tower){ d.tower=n; await this.save(d); lines.push(`<div class="lvup">🗼 Floor ${n} cleared!</div>`); await coins(30+10*n);
         if(n%5===0){ const made=await BF.Parts.openPack(n===30?'crate':'pack','tower'); made.forEach(p=>lines.push(partLine(p))); }
         BF.Ach.event('tower',n); BF.Missions&&BF.Missions.bump('tower'); } else lines.push('<div class="dim">Already cleared — climb higher for rewards.</div>'); }
-    if(adv.kind==='gym'){ if(!d.badges.includes(adv.id)){ d.badges.push(adv.id); await this.save(d); lines.push(`<div class="lvup">🏅 ${BF.ELEMENTS[adv.id].label} Badge earned!</div>`); await coins(250);
+    if(adv.kind==='gym'){ if(!d.badges.includes(adv.id)){ d.badges.push(adv.id); await this.save(d); lines.push(`<div class="lvup">🏅 ${BF.ELEMENTS[adv.id].label} Badge earned! +10 💎</div>`); await coins(250); BF.Gems&&BF.Gems.add(10,'gym badge');
         const slot=BF.PART_SLOTS[Math.floor(Math.random()*3)]; const p=await BF.Parts.create(slot,designFor((Math.random()*1e9)|0,adv.id),'epic','gym'); lines.push(partLine(p)); BF.Ach.event('badges',d.badges.length); }
       else lines.push('<div class="dim">You already have this badge.</div>'); }
-    if(adv.kind==='weekly'){ if(d.weekly!==adv.id){ d.weekly=adv.id; await this.save(d); await coins(500);
+    if(adv.kind==='weekly'){ if(d.weekly!==adv.id){ d.weekly=adv.id; await this.save(d); await coins(500); BF.Gems&&BF.Gems.add(25,'weekly boss'); lines.push('<div class="lvup">+25 💎 gems</div>');
         if(Math.random()<0.3){ const made=await BF.Parts.openPack('crate','weekly'); made.forEach(p=>lines.push(partLine(p))); }
         else { const p=await BF.Parts.create(BF.PART_SLOTS[Math.floor(Math.random()*3)],BF.Parts.randomDesign(),'epic','weekly'); lines.push(partLine(p)); }
         BF.Ach.event('weekly',1); } else lines.push('<div class="dim">Weekly reward already claimed.</div>'); }
-    if(adv.kind==='raid'){ if(d.raid!==adv.id){ d.raid=adv.id; await this.save(d); const made=await BF.Parts.openPack('crate','raid'); made.forEach(p=>lines.push(partLine(p))); await coins(300); BF.Ach.event('raid',1); }
+    if(adv.kind==='raid'){ if(d.raid!==adv.id){ d.raid=adv.id; await this.save(d); const made=await BF.Parts.openPack('crate','raid'); made.forEach(p=>lines.push(partLine(p))); await coins(300); BF.Gems&&BF.Gems.add(30,'raid clear'); lines.push('<div class="lvup">+30 💎 gems</div>'); BF.Ach.event('raid',1); }
       else lines.push('<div class="dim">Raid reward already claimed this week.</div>'); }
     return lines.join('');
   }
@@ -166,7 +166,7 @@ BF.Ach = {
   async grant(x){
     const a=A(), FV=window.firebase&&firebase.firestore&&firebase.firestore.FieldValue; let made=[];
     if(x.reward.coins&&a&&a.profile&&FV) await a.update({coins:FV.increment(x.reward.coins)}).catch(()=>{});
-    if(x.reward.pack) made=await BF.Parts.openPack('pack','achievement');
+    BF.Gems&&BF.Gems.add(x.reward.limited?20:10,'achievement'); if(x.reward.pack) made=await BF.Parts.openPack('pack','achievement');
     if(x.reward.limited){ const L=LIMITED[x.reward.limited]; made=[await BF.Parts.create(L.slot,L.make(),'limited','achievement',{name:L.name})]; }
     this.toast(x,made);
   },

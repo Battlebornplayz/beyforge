@@ -22,7 +22,7 @@ BF.earnedTitles=()=>{ const t=[], g=BF.Ach?BF.Ach.got():{}, d=BF.Adventure?BF.Ad
 BF.cardClasses=p=>`bn-${(p&&p.card&&p.card.banner)||'stadium'} fr-${(p&&p.card&&p.card.frame)||'ring'}`;
 
 // ---------- daily streak (7-day cycle) ----------
-const STREAK=[{c:50},{c:75},{c:100},{pack:'pack'},{c:150},{c:200},{pack:'elite'}];
+const STREAK=[{c:50},{c:75,g:2},{c:100},{pack:'pack',g:3},{c:150},{c:200,g:5},{pack:'elite',g:10}];
 const Streak={
   state(){ const a=A(); return Object.assign({n:0,last:''},(a&&a.profile&&a.profile.streak)||BF.LS.get('bf.streak',{})); },
   canClaim(){ return this.state().last!==today(); },
@@ -31,7 +31,7 @@ const Streak={
     const a=A(); if(!(a&&a.profile)) throw new Error('Sign in (Blader tab) to collect daily rewards');
     if(!this.canClaim()) throw new Error('Already collected today — come back tomorrow');
     const day=this.nextDay(), r=STREAK[day-1]; await a.update({streak:{n:day,last:today()}});
-    let made=null; if(r.c) await coins(r.c); if(r.pack) made=await BF.Packs.open(r.pack,'streak');
+    let made=null; if(r.c) await coins(r.c); if(r.g&&BF.Gems) await BF.Gems.add(r.g,'streak'); if(r.pack) made=await BF.Packs.open(r.pack,'streak');
     return {day,r,made};
   }
 };
@@ -95,7 +95,7 @@ const Home=BF.Home={
       </section>`;
     root.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>this.go(b.dataset.go));
     $('#claimStreak').onclick=async e=>{ const btn=e.currentTarget; btn.disabled=true;
-      try{ const r=await Streak.claim(); this.burst(btn,r.r.c?'🪙':'🎁'); BF.Sfx&&BF.Sfx.ui&&BF.Sfx.ui('coin'); if(r.made) BF.PartsUI.reveal(r.made,`Day ${r.day} reward`); else BF.App.toast(`Day ${r.day}: +${r.r.c} coins`,'good'); setTimeout(()=>this.render(),900); }
+      try{ const r=await Streak.claim(); this.burst(btn,r.r.c?'🪙':'🎁'); BF.Sfx&&BF.Sfx.ui&&BF.Sfx.ui('coin'); if(r.made) BF.PackOpen.show(r.made,BF.Packs.get(r.r.pack)); else BF.App.toast(`Day ${r.day}: +${r.r.c} coins`,'good'); setTimeout(()=>this.render(),900); }
       catch(err){ BF.App.toast(err.message,'bad'); btn.disabled=false; } };
     root.querySelectorAll('[data-mclaim]').forEach(b=>b.onclick=async()=>{ try{ const n=await Missions.claim(b.dataset.mclaim); if(n){ this.burst(b,'🪙'); BF.Sfx&&BF.Sfx.ui&&BF.Sfx.ui('coin'); BF.App.toast(`+${n} coins`,'good'); setTimeout(()=>this.render(),700); } }catch(err){ BF.App.toast(err.message,'bad'); } });
     const ann=BF.App&&BF.App._ann; if(ann){ const n=$('#hNews'); n.insertAdjacentHTML('afterbegin',`<div class="news hot"><b>📣</b><span>${esc(ann)}</span></div>`); }

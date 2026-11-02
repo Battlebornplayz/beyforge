@@ -130,7 +130,7 @@ BF.PackModel = {
     const loop=now=>{ if(!on) return; requestAnimationFrame(loop); fit(); const t=(now-t0)/1000; m.rotation.y=Math.sin(t*0.8)*0.6; m.rotation.x=0.1+Math.sin(t*1.3)*0.06; m.position.y=Math.sin(t*1.7)*3;
       if(m.userData.glow) m.userData.glow.material.emissiveIntensity=1.2+Math.sin(t*4)*0.6; r.render(s,cam); };
     requestAnimationFrame(loop);
-    return {model:m,scene:s,camera:cam,renderer:r,stop(){ on=false; r.dispose(); }};
+    return {model:m,scene:s,camera:cam,renderer:r,stop(){ on=false; r.dispose(); r.forceContextLoss(); }};
   }
 };
 })();

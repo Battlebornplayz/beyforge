@@ -61,7 +61,7 @@ const U = BF.UI6 = {
     size(); addEventListener('resize',size);
     let last=performance.now();
     const tick=now=>{ requestAnimationFrame(tick); const dt=Math.min(0.05,(now-last)/1000); last=now;
-      if(root.classList.contains('no-idle')||document.hidden){ if(c._clear!==1){ x.clearRect(0,0,W,H); c._clear=1; } return; } c._clear=0;
+      if(root.classList.contains('no-idle')||document.hidden||document.body.classList.contains('po-on')){ if(c._clear!==1){ x.clearRect(0,0,W,H); c._clear=1; } return; } c._clear=0;
       const cs=getComputedStyle(root), c1=cs.getPropertyValue('--accent').trim()||'#ffe600', c2=cs.getPropertyValue('--accent2').trim()||'#2ef2ff';
       x.clearRect(0,0,W,H);
       P.forEach((p,i)=>{ p.x+=p.vx*dt+Math.sin(now/1000+p.ph)*0.15; p.y+=p.vy*dt; if(p.y<-10) P[i]=spawn(false);

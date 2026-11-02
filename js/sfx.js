@@ -17,7 +17,10 @@ BF.Sfx = {
     else if(kind==='tab'){ hiss(0.16,1800,0.07,0.8); tone('sine',500,900,0.12,0.035); }
     else if(kind==='coin'){ tone('square',1568,1568,0.06,0.05); setTimeout(()=>tone('square',2093,2093,0.12,0.05),60); }
     else if(kind==='open'){ hiss(0.2,2600,0.06,1.2); tone('triangle',300,700,0.18,0.05); }
-    else if(kind==='close'){ tone('triangle',600,300,0.12,0.04); } },
+    else if(kind==='close'){ tone('triangle',600,300,0.12,0.04); }
+    else if(kind==='flip'){ hiss(0.08,3200,0.05,1.5); tone('sine',700,1100,0.08,0.04); }
+    else if(kind==='epic'){ hiss(0.12,3000,0.06,1.4); [784,988,1319].forEach((f,i)=>setTimeout(()=>tone('triangle',f,f,0.14,0.05),i*70)); }
+    else if(kind==='legend'){ hiss(0.5,1500,0.09,0.6); [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>tone('square',f,f*1.01,0.22,0.045),i*90)); setTimeout(()=>tone('sine',1568,2093,0.6,0.05),460); } },
   get muted(){ return muted(); },
   toggle(){ BF.LS.set('bf.muted',!muted()); if(muted()&&revGain){ this.rev(false); } return muted(); },
   beep(go){ tone('square',go?880:520,go?1320:520,go?0.35:0.12,0.18); },

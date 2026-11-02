@@ -40,7 +40,7 @@ const S = BF.Social = {
       Object.keys(this.friends).forEach(k=>{ if(!ids.has(k)) delete this.friends[k]; }); if(!$('#view-profile').hidden) this.renderFriends(); }));
   },
   notify(x){
-    const msg={friend:`${x.fromName} sent you a friend request`,invite:`${x.fromName} invited you to battle!`,gift:`${x.fromName} sent you a Bey: ${x.meta&&x.meta.full||''}`,trade:`${x.fromName} wants to trade: ${x.meta&&x.meta.full||''}`,chat:`${x.fromName}: ${x.text||''}`}[x.type]||'New notification';
+    const msg={friend:`${x.fromName} sent you a friend request`,invite:`${x.fromName} invited you to battle!`,gift:`${x.fromName} sent you a Bey: ${x.meta&&x.meta.full||''}`,trade:`${x.fromName} wants to trade: ${x.meta&&x.meta.full||''}`,giftItem:`${x.fromName} gifted you ${x.label||'something'} 🎁`,chat:`${x.fromName}: ${x.text||''}`}[x.type]||'New notification';
     BF.App.toast(msg,'good'); BF.Sfx&&BF.Sfx.beep(true);
   },
 
@@ -129,14 +129,15 @@ const S = BF.Social = {
     const el=$('#inboxList'); if(!el) return;
     if(!this.inbox.length){ el.innerHTML='<div class="fine">Nothing new. Friend requests, battle invites and Beys people send you show up here.</div>'; return; }
     el.innerHTML=this.inbox.map(x=>`<div class="ibx" data-id="${x.id}">
-      <div class="ib-t"><b>${esc(x.fromName)}</b> ${x.type==='friend'?'wants to be friends':x.type==='invite'?`invited you to battle · room <span class="mono">${esc(x.code)}</span>`:x.type==='gift'?`sent you <b>${esc(x.meta&&x.meta.full)}</b>`:x.type==='trade'?`wants to trade you <b>${esc(x.meta&&x.meta.full)}</b>`:x.type==='pack'?`sent you a <b>${esc((BF.Packs.get(x.kind)||BF.Packs.get('pack')).name)}</b> 🎁`:esc(x.text||'')}</div>
-      <div class="ib-a">${x.type==='friend'?'<button class="btn primary" data-a="accept">Accept</button>':x.type==='invite'?'<button class="btn primary" data-a="join">Join battle</button>':x.type==='gift'?'<button class="btn primary" data-a="keep">Add to library</button>':x.type==='trade'?'<button class="btn primary" data-a="trade">Pick what to swap</button>':x.type==='pack'?'<button class="btn primary" data-a="pack">Open it</button>':''}<button class="btn ghost" data-a="dismiss">${x.type==='friend'||x.type==='trade'?'Decline':'Dismiss'}</button></div></div>`).join('');
+      <div class="ib-t"><b>${esc(x.fromName)}</b> ${x.type==='friend'?'wants to be friends':x.type==='invite'?`invited you to battle · room <span class="mono">${esc(x.code)}</span>`:x.type==='gift'?`sent you <b>${esc(x.meta&&x.meta.full)}</b>`:x.type==='trade'?`wants to trade you <b>${esc(x.meta&&x.meta.full)}</b>`:x.type==='pack'?`sent you a <b>${esc((BF.Packs.get(x.kind)||BF.Packs.get('pack')).name)}</b> 🎁`:x.type==='giftItem'?`gifted you <b>${esc(x.label)}</b> 🎁`:esc(x.text||'')}</div>
+      <div class="ib-a">${x.type==='friend'?'<button class="btn primary" data-a="accept">Accept</button>':x.type==='invite'?'<button class="btn primary" data-a="join">Join battle</button>':x.type==='gift'?'<button class="btn primary" data-a="keep">Add to library</button>':x.type==='trade'?'<button class="btn primary" data-a="trade">Pick what to swap</button>':x.type==='pack'?'<button class="btn primary" data-a="pack">Open it</button>':x.type==='giftItem'?'<button class="btn primary" data-a="gitem">Claim</button>':''}<button class="btn ghost" data-a="dismiss">${x.type==='friend'||x.type==='trade'?'Decline':'Dismiss'}</button></div></div>`).join('');
     el.querySelectorAll('.ibx').forEach(row=>{ const x=this.inbox.find(i=>i.id===row.dataset.id);
       row.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{ const a=b.dataset.a; b.disabled=true;
         try{
           if(a==='accept'){ const me=A.profile; await A.ref().collection('friends').doc(x.from).set({name:x.fromName,since:FV().serverTimestamp()}); await A.ref(x.from).collection('friends').doc(A.user.uid).set({name:me.name,since:FV().serverTimestamp()}); BF.App.toast(`You and ${x.fromName} are friends`,'good'); }
           if(a==='join'){ this.joinInvite(x.code); }
-          if(a==='pack'){ const s=(await A.ref(x.from).get()).data()||{}; const r=s.role&&A.roles[s.role]; if(!(s.isOwnerFlag||(r&&r.perms&&r.perms.grant))) throw new Error('Only staff can send packs'); const made=await BF.Parts.openPack(x.kind||'pack','gift'); BF.PartsUI.reveal(made,'Gift from '+x.fromName); }
+          if(a==='pack'){ const s=(await A.ref(x.from).get()).data()||{}; const r=s.role&&A.roles[s.role]; if(!(s.isOwnerFlag||(r&&r.perms&&r.perms.grant))) throw new Error('Only staff can send packs'); const made=await BF.Parts.openPack(x.kind||'pack','gift'); BF.PackOpen.show(made,BF.Packs.get(x.kind||'pack')); }
+          if(a==='gitem') await BF.Store6.receive(x);
           if(a==='trade'){ const ok=await BF.Trades.respond(x,true); if(!ok){ b.disabled=false; return; } }
           if(a==='dismiss'&&x.type==='trade') await BF.Trades.respond(x,false);
           if(a==='keep'){ await BF.Store.saveDesign(BF.normalize(x.design),x.meta,x.thumb||null); BF.App.toast(`${x.meta.full} added to your library`,'good'); }

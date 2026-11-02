@@ -23,10 +23,12 @@ BF.CARD_STYLES={standard:'Standard',neon:'Neon',gold:'Gold',holo:'Holo foil',dar
 const label=(cat,k)=>({finish:BF.FINISHES,pattern:BF.PATTERNS,sticker:BF.STICKERS,trail:BF.COSMETICS.trail,launch:BF.COSMETICS.launch,aura:BF.COSMETICS.aura,win:BF.COSMETICS.win,card:BF.CARD_STYLES,theme:Object.fromEntries(Object.entries(BF.UI_THEMES||{}).map(([a,b])=>[a,b.label])),banner:Object.fromEntries(Object.entries(BF.BANNERS||{}).map(([a,b])=>[a,b.label])),frame:Object.fromEntries(Object.entries(BF.FRAMES||{}).map(([a,b])=>[a,b.label]))}[cat]||{})[k]||k;
 
 BF.Shop = {
-  price(cat,k){ return (P[cat]&&P[cat][k])||0; },
+  P, CATS, label,
+  base(cat,k){ return (P[cat]&&P[cat][k])||0; },
+  price(cat,k){ const b=this.base(cat,k); return BF.Store6&&b?BF.Store6.adjust(cat+':'+k,b):b; },
   level(cat,k){ return LEVEL[cat+':'+k]||1; },
   has(cat,k){
-    if(!this.price(cat,k)) return true;
+    if(!this.base(cat,k)) return true;
     const A=BF.Account; if(!A||!A.profile) return false; if(A.isOwner) return true;
     const u=A.profile.unlocks||[]; return u.includes('*')||u.includes(cat+':'+k);
   },

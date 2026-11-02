@@ -112,7 +112,7 @@ const UI = BF.PartsUI = {
     const price=P().price(kind), A=BF.Account;
     if(!(A&&A.profile)) return BF.App.toast('Sign in (Blader tab) to earn coins and open packs','bad');
     if((A.profile.coins||0)<price) return BF.App.toast(`You need ${price} coins — win battles and grab the daily bonus`,'bad');
-    try{ const made=await P().buyPack(kind); this.reveal(made,BF.Packs.get(kind).name); }catch(e){ BF.App.toast(e.message,'bad'); }
+    try{ const made=await P().buyPack(kind); BF.PackOpen.show(made,BF.Packs.get(kind)); }catch(e){ BF.App.toast(e.message,'bad'); }
   },
   // pack details: live 3D model + full odds table
   packInfo(id){

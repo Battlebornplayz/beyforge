@@ -9,13 +9,13 @@ BF.Admin = {
   tab:'ranks',
   render(root){
     if(!root) return;
-    const tabs=[['ranks','Ranks',A.can('manageRoles')],['players','Players',A.can('grant')||A.can('moderate')],['announce','Announcement',A.can('manageGame')],['ranked','Ranked rules',A.can('manageGame')],['events','Weekly boss',A.can('manageGame')],['packs','Packs & odds',A.can('manageGame')]].filter(t=>t[2]);
+    const tabs=[['ranks','Ranks',A.can('manageRoles')],['players','Players',A.can('grant')||A.can('moderate')],['announce','Announcement',A.can('manageGame')],['ranked','Ranked rules',A.can('manageGame')],['events','Weekly boss',A.can('manageGame')],['packs','Packs & odds',A.can('manageGame')],['shop','Shop',A.can('manageGame')]].filter(t=>t[2]);
     if(!tabs.find(t=>t[0]===this.tab)) this.tab=tabs[0]&&tabs[0][0];
     root.innerHTML=`<h3>${A.isOwner?'Owner panel':'Staff panel'} <span class="cnt gold">${A.isOwner?'OWNER':'STAFF'}</span></h3>
       <div class="seg sm admtabs">${tabs.map(([k,l])=>`<button type="button" class="${this.tab===k?'on':''}" data-t="${k}">${l}</button>`).join('')}</div><div id="admBody"></div>`;
     root.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{ this.tab=b.dataset.t; this.render(root); });
     const body=root.querySelector('#admBody');
-    if(this.tab==='ranks') this.ranks(body); else if(this.tab==='players') this.players(body); else if(this.tab==='announce') this.announce(body); else if(this.tab==='ranked') BF.Ranked.editor(body); else if(this.tab==='events') this.events(body); else if(this.tab==='packs') this.packs(body);
+    if(this.tab==='ranks') this.ranks(body); else if(this.tab==='players') this.players(body); else if(this.tab==='announce') this.announce(body); else if(this.tab==='ranked') BF.Ranked.editor(body); else if(this.tab==='events') this.events(body); else if(this.tab==='packs') this.packs(body); else if(this.tab==='shop') this.shop(body);
   },
   ranks(el){
     const roles=Object.entries(A.roles).sort((a,b)=>(b[1].order||0)-(a[1].order||0));
@@ -99,6 +99,29 @@ BF.Admin = {
       doc.set({packs,by:A.profile.name,ts:firebase.firestore.FieldValue.serverTimestamp()}).then(()=>BF.App.toast('Packs & odds published','good')).catch(err); };
     el.querySelector('#pkReset').onclick=e=>{ const b=e.currentTarget; if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='Tap again to reset'; return; }
       doc.set({packs:{}}).then(()=>{ BF.App.toast('Packs reset to defaults'); this.packs(el); }).catch(err); };
+  },
+  shop(el){
+    const S=BF.Store6, c=S.cfg||{}, sale=c.sale||{}, feat=(c.featured||[]).slice(), prices=Object.assign({},c.prices||{});
+    const pool=[...Object.keys(BF.BUNDLES).map(k=>'b:'+k),...BF.Packs.list().map(p=>'p:'+p.id),...S.paidCosmetics()].map(id=>S.item(id)).filter(Boolean);
+    const ends=sale.ends?new Date(sale.ends).toISOString().slice(0,10):'';
+    el.innerHTML=`<p class="dim small">Run sales, pick the featured banner and override prices. Featured left empty = auto-rotates weekly. Changes go live for everyone instantly.</p>
+      <div class="rk-grid"><section><h4>Sale</h4>
+        <label class="rk-f"><span>Name</span><input class="txt sm" id="shSaleL" maxlength="30" value="${esc(sale.label||'')}" placeholder="Weekend Sale"></label>
+        <label class="rk-f"><span>Discount</span><span class="num-wrap"><input class="num" type="number" id="shSaleP" min="0" max="90" value="${sale.pct||0}"><span class="unit">% off everything (0 = no sale)</span></span></label>
+        <label class="rk-f"><span>Ends</span><input class="txt sm" type="date" id="shSaleE" value="${ends}"></label></section>
+      <section><h4>Featured (limited-time)</h4><div class="chips" id="shFeat">${pool.map(it=>`<button type="button" class="chip${feat.includes(it.id)?' on':''}" data-f="${it.id}">${esc(it.name)}</button>`).join('')}</div>
+        <label class="rk-f"><span>Featured ends</span><input class="txt sm" type="date" id="shFeatE" value="${c.featuredEnds?new Date(c.featuredEnds).toISOString().slice(0,10):''}"></label></section></div>
+      <h4>Price overrides <span class="dim small">(coins, blank = default)</span></h4>
+      <div class="shprices">${pool.map(it=>`<label><span>${esc(it.name)}</span><input class="num" type="number" min="0" data-p="${it.id}" value="${prices[it.id]&&prices[it.id].coins!=null?prices[it.id].coins:''}" placeholder="${it.type==='cosmetic'?BF.Shop.base(it.cat,it.k):it.type==='pack'?BF.Packs.price(it.pack):it.full?Math.round(it.full*0.7/10)*10:''}"></label>`).join('')}</div>
+      <div class="addrow"><button class="btn primary" id="shSave">Publish shop</button><button class="btn ghost" id="shReset">Reset shop to auto</button></div>`;
+    el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ const i=feat.indexOf(b.dataset.f); i>=0?feat.splice(i,1):feat.length<6&&feat.push(b.dataset.f); b.classList.toggle('on',feat.includes(b.dataset.f)); });
+    const doc=A.db.collection('config').doc('shop');
+    el.querySelector('#shSave').onclick=()=>{ const pr={}; el.querySelectorAll('[data-p]').forEach(i=>{ if(i.value!=='') pr[i.dataset.p]={coins:Math.max(0,Math.round(+i.value))}; });
+      const se=el.querySelector('#shSaleE').value, fe=el.querySelector('#shFeatE').value;
+      doc.set({sale:{label:el.querySelector('#shSaleL').value.trim(),pct:Math.max(0,Math.min(90,+el.querySelector('#shSaleP').value||0)),ends:se?new Date(se+'T23:59:59').getTime():null},
+        featured:feat,featuredEnds:fe?new Date(fe+'T23:59:59').getTime():null,prices:pr,by:A.profile.name}).then(()=>BF.App.toast('Shop published','good')).catch(err); };
+    el.querySelector('#shReset').onclick=e=>{ const b=e.currentTarget; if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='Tap again to reset'; return; }
+      doc.set({}).then(()=>{ BF.App.toast('Shop back to auto'); S.cfg={}; this.shop(el); }).catch(err); };
   },
   events(el){
     const Adv=BF.Adventure, cur=Adv._override&&Adv._override.week===Adv.week()?Adv._override:{}, wb=Adv.weekly();
