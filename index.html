@@ -14,7 +14,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span>BEY<b>FORGE</b></span><em>V4.3</em></div>
+  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span>BEY<b>FORGE</b></span><em>V5.0</em></div>
   <nav class="tabs" id="tabs">
     <button data-tab="forge" class="on">Forge</button>
     <button data-tab="battle">Battle</button>
@@ -51,11 +51,14 @@
 <main id="view-battle" class="view battle" hidden>
   <div id="arena"></div>
   <div class="bhud" id="bhud" hidden>
-    <div class="pcard c1"><b id="n1"></b><div class="spinbar"><i id="s1"></i></div><div class="burstbar" title="Burst meter"><i id="bm1"></i></div><div class="pips" id="pips1"></div></div>
+    <div class="pcard c1"><b id="n1"></b><div class="spinbar"><i id="s1"></i></div><div class="burstbar" title="Burst meter"><i id="bm1"></i></div><div class="pstat" id="st1"></div><div class="pips" id="pips1"></div></div>
     <div class="roundlbl" id="roundLbl"></div>
-    <div class="pcard c2"><b id="n2"></b><div class="spinbar"><i id="s2"></i></div><div class="burstbar" title="Burst meter"><i id="bm2"></i></div><div class="pips" id="pips2"></div></div>
+    <div class="pcard c2"><b id="n2"></b><div class="spinbar"><i id="s2"></i></div><div class="burstbar" title="Burst meter"><i id="bm2"></i></div><div class="pstat" id="st2"></div><div class="pips" id="pips2"></div></div>
   </div>
   <div class="banner" id="banner" hidden></div>
+  <div class="movecall" id="moveCall" hidden></div>
+  <div class="effpop" id="effPop" hidden></div>
+  <div class="movebar" id="moveBar" hidden></div>
   <div class="bpanel" id="bpanel"></div>
 </main>
 
@@ -126,6 +129,7 @@
 <script src="js/data.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/data4.js"></script>
+<script src="js/moves.js"></script>
 <script src="js/geometry.js"></script>
 <script src="js/viewer.js"></script>
 <script src="js/hd.js"></script>

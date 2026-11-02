@@ -51,6 +51,7 @@ BF.defaultDesign = function(){
   d.bit.customTip=[0.2,0.45,0.7,0.85,0.95,1,1,1]; d.bit.mode='attack';
   d.deco.horns={count:0, height:5, lean:20, style:'cone'};
   d.chip={on:false, height:3, emblem:'star', dome:0.6};
+  d.element={p:null, s:null};   // v5: chosen primary/secondary element (from what the parts allow)
   d.paint={
     blade: BF.defaultPaint(d.blade.color,'gloss'),
     accent:BF.defaultPaint(d.deco.accent,'glow'),

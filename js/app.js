@@ -76,6 +76,7 @@ const App = BF.App = {
       card:()=>BF.Card.open(BF.clone(this.d)),
       showcase:()=>BF.Showcase.toggle(),
       share:()=>BF.Share.open(BF.clone(this.d)),
+      setEl:(k,v)=>{ this.push(); this.d.element=Object.assign({p:null,s:null},this.d.element||{}); this.d.element[k]=v; if(k==='p'&&this.d.element.s===v) this.d.element.s=null; this.renderSheet(); },
       prompt:()=>this.showPrompt(),
       reroll:()=>{ this.push(); this.d.nameSeed=Math.floor(Math.random()*99999); this.rebuild(); },
       rename:()=>{ this.push(); if(this.d.nameMode==='auto'){ this.d.nameMode='manual'; this.d.name=BF.naming(this.d).auto; } else this.d.nameMode='auto'; this.rebuild(); },

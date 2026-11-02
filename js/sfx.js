@@ -23,6 +23,8 @@ BF.Sfx = {
   rip(){ hiss(0.45,2400,0.35,0.7); tone('sawtooth',300,1400,0.35,0.08); },
   clash(s){ const now=performance.now(); if(now-lastClash<45) return; lastClash=now; const v=Math.min(0.5,0.08+s/5000); hiss(0.12,3200+Math.random()*1500,v,2.5); tone('triangle',1800+Math.random()*900,600,0.09,v*0.5); },
   dash(){ hiss(0.3,5200,0.12,4); tone('sine',600,1600,0.25,0.06); },
+  move(kind){ tone('sawtooth',260,1300,0.32,0.11); hiss(0.35,2400,0.16,3); setTimeout(()=>tone('square',880,1760,0.12,0.06),140); },
+  status(){ tone('triangle',520,260,0.18,0.07); },
   click(n){ tone('square',1400+(n||1)*400,900,0.05,0.12); setTimeout(()=>tone('square',1100+(n||1)*400,700,0.04,0.09),55); },
   burst(){ hiss(0.7,900,0.6,0.6); tone('square',220,40,0.6,0.25); setTimeout(()=>hiss(0.4,3000,0.3,1.5),80); },
   finish(how){ const notes={spin:[523,659],over:[523,784,1046],burst:[392,523,784,1046],xtreme:[523,659,784,1046,1318]}[how]||[523,784];

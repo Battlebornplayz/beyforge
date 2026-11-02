@@ -8,7 +8,7 @@ const DEFAULTS = {
   mode:'easy', preview:'paint', printChecks:true, autoSpin:true,
   roundLength:'normal', roundCustom:1, format:'official', customTarget:5, customPoints:'official',
   cosmetics:true, bloom:true, trails:true, particles:true, shake:true, quality:'high', shadows:true,
-  sound:true, volume:0.6,
+  sound:true, volume:0.6, moves:true, cpuLevel:'normal',
   tour:true, filament:[
     {name:'Black PLA', color:'#16171f', material:'PLA'}, {name:'White PLA', color:'#f2f4f8', material:'PLA'},
     {name:'Red PLA', color:'#e8262f', material:'PLA'}, {name:'Blue PETG', color:'#1f8bff', material:'PETG'}],
@@ -58,6 +58,7 @@ BF.Settings = {
         ${tog('autoSpin','Auto-spin preview')}
       </section>
       <section><h4>Battle</h4>
+        ${tog('moves','Moves, elements & lean','Launch formations, move buttons, element matchups and tap-to-lean. Off = classic hands-off battles.')}
         ${sel('roundLength','Round length',BF.ROUND_LENGTH)}
         ${v.roundLength==='custom'?`<div class="srow"><div><b>Custom length</b><span>${(v.roundCustom).toFixed(2)}× normal</span></div><input type="range" min="0.5" max="4" step="0.25" value="${v.roundCustom}" data-range="roundCustom"></div>`:''}
         ${sel('format','Match format',BF.FORMATS)}

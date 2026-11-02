@@ -202,6 +202,21 @@ BF.UI = {
       ${axes.map((_,i)=>{ const [x,y]=pt(i,1); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="hx-grid"/>`; }).join('')}
       <polygon points="${shape}" class="hx-shape"/>${labels}</svg>`;
   },
+  // v5: element typing + the 3 moves each part brings to a launch formation
+  battleKit(d){
+    if(!BF.movePools) return '';
+    const allowed=BF.allowedElements(d), els=BF.elementsOf(d), pe=BF.partElements(d), pools=BF.movePools(d);
+    const chip=(e,attr,on)=>{ const E=BF.ELEMENTS[e]; return `<button type="button" class="elchip${on?' on':''}" ${attr}="${e}" style="--c:${E.color}">${E.icon} ${E.label}</button>`; };
+    const vs=e=>{ const E=BF.ELEMENTS[e]; return E.strong.map(x=>BF.ELEMENTS[x].icon).join(''); };
+    const weak=Object.keys(BF.ELEMENTS).filter(x=>BF.elemMult([x],els)>1.01).map(x=>BF.ELEMENTS[x].icon).join('')||'—';
+    const strong=[...new Set(els.flatMap(e=>BF.ELEMENTS[e].strong))].map(x=>BF.ELEMENTS[x].icon).join('');
+    return `<div class="block kitblk"><div class="blk-title">Battle kit</div>
+      <div class="optrow"><span>Type</span><div class="elrow">${allowed.map(e=>chip(e,'data-elp',els[0]===e)).join('')}</div></div>
+      ${allowed.length>1?`<div class="optrow"><span>2nd type</span><div class="elrow">${allowed.filter(e=>e!==els[0]).map(e=>chip(e,'data-els',els[1]===e)).join('')}<button type="button" class="elchip${els[1]?'':' on'}" data-els="">None</button></div></div>`:''}
+      <div class="fine">Strong vs ${strong} · weak to ${weak}. Your parts allow: ${Object.entries(pe).map(([k,e])=>`${BF.PART_LABEL[k]} ${BF.ELEMENTS[e].icon}`).join(' · ')}</div>
+      <div class="kitmoves">${['blade','core','driver'].map(part=>`<div class="kitpart"><span>${BF.PART_LABEL[part]}</span>${pools[part].map(m=>`<div class="kitmv" style="--c:${BF.ELEMENTS[m.el].color}" title="${esc(BF.MOVE_KINDS[m.kind].desc)}"><i>${BF.ELEMENTS[m.el].icon}</i><b>${esc(m.name)}</b><em>${esc(BF.MOVE_KINDS[m.kind].desc)}</em></div>`).join('')}</div>`).join('')}</div>
+      <div class="fine">Pick 1 move per part each launch. Change the blade shape, ratchet/disc or tip to get different moves.</div></div>`;
+  },
   sheet(root,d,asm,mp,actions){
     const an=actions.an, nm=BF.naming(d, an.type);
     const typeCol={attack:'var(--pink)',defense:'var(--amber)',stamina:'var(--cyan)',balance:'var(--violet)'}[nm.type];
@@ -229,6 +244,7 @@ BF.UI = {
         <div class="spinrow"><span>Est. spin time</span><b class="mono">${spin}</b></div>
         <div class="fine">Physics estimate from mass, inertia (${(mp.Izz/1000).toFixed(1)} g·cm²), tip friction and drag. Launch power, hits and stadium wear change real results.</div>
       </div>
+      ${this.battleKit(d)}
       <div class="block">
         <div class="kv"><span>Total weight</span><b class="mono big">${mp.mass.toFixed(1)} g</b></div>
         <div class="kv"><span>Diameter</span><b class="mono">${(BF.mainPart(asm).meta.R*2).toFixed(1)} mm</b></div>
@@ -269,6 +285,8 @@ BF.UI = {
       </div>`;
     root.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()=>actions[b.dataset.act](b)));
     root.querySelectorAll('[data-ex]').forEach(b=>b.addEventListener('click',()=>actions.toggleEx(b.dataset.ex)));
+    root.querySelectorAll('[data-elp]').forEach(b=>b.addEventListener('click',()=>actions.setEl('p',b.dataset.elp)));
+    root.querySelectorAll('[data-els]').forEach(b=>b.addEventListener('click',()=>actions.setEl('s',b.dataset.els||null)));
     root.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>actions.preset(b.dataset.preset)));
     const ni=root.querySelector('#nameInput'); if(ni) ni.addEventListener('change',()=>actions.setName(ni.value));
   }

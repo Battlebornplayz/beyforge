@@ -31,6 +31,9 @@ const B = BF.BattleUI = {
     BF.Net.on('s',m=>{ this.netSnap=m.s; (m.ev||[]).forEach(e=>this.fx(e)); });
     BF.Net.on('round',m=>this.roundEnd(m.res,m.score,true));
     BF.Net.on('rematch',()=>{ if(BF.Net.role==='host') this.hostStart(); });
+    // guest's in-fight inputs: the host's sim applies them to Bey #2
+    BF.Net.on('in',m=>{ if(!this.sim||BF.Net.role!=='host') return; if(m.k==='move') this.sim.useMove(1,m.s|0); if(m.k==='lean') this.sim.lean(1,+m.x||0,+m.y||0); });
+    this.bindControls();
   },
   show(){ this.arena.resize(); if(this.st==='setup') this.renderSetup(); },
   // ---------- picking fighters ----------
@@ -78,6 +81,7 @@ const B = BF.BattleUI = {
       <div class="seg" id="modeSeg">${[['cpu','vs CPU'],['local','2 players'],['online','Online']].map(([k,l])=>`<button type="button" class="${this.mode===k?'on':''}" data-mode="${k}">${l}</button>`).join('')}</div>
       <label class="fl">${online?'Your Bey':'Player 1'}${sel('pick1',this.picks.p1)}</label>
       ${online?'':`<label class="fl">${this.mode==='cpu'?'CPU opponent':'Player 2'}${sel('pick2',this.picks.p2)}</label>`}
+      ${this.mode==='cpu'?`<div class="fl">CPU difficulty<div class="seg" id="cpuSeg">${Object.entries(BF.CPU_LEVELS).map(([k,l])=>`<button type="button" class="${(BF.Settings.get('cpuLevel')||'normal')===k?'on':''}" data-cpu="${k}">${l}</button>`).join('')}</div></div>`:''}
       ${hostCtl?`<div class="fl">Stadium<div class="seg" id="stSeg">${[['X','Xtreme'],['Burst','Burst']].map(([k,l])=>`<button type="button" class="${this.stadiumKind===k?'on':''}" data-st="${k}">${l}</button>`).join('')}</div></div>
       <label class="fl">Stadium size <output id="sizeOut" class="val">${this.size} mm</output><input type="range" id="sizeIn" min="280" max="480" step="10" value="${this.size}"></label>
       <div class="fine">${this.rulesLine()} · ${BF.ROUND_LENGTH[BF.Settings.get('roundLength')].label.toLowerCase()} rounds — change in Settings</div>`:''}
@@ -88,6 +92,7 @@ const B = BF.BattleUI = {
     this.panel.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{ this.stadiumKind=b.dataset.st; this.size=b.dataset.st==='X'?380:360; this.renderSetup(); });
     const si=$('#sizeIn'); if(si) si.oninput=()=>{ this.size=+si.value; $('#sizeOut').textContent=this.size+' mm'; };
     const p1=$('#pick1'); if(p1) p1.onchange=()=>{ this.picks.p1=p1.value; if(online && net.status==='connected') BF.Net.send({t:'hello',design:this.myDesign(),name:this.myName()}); this.renderSetup(); };
+    this.panel.querySelectorAll('[data-cpu]').forEach(b=>b.onclick=()=>{ BF.Settings.set('cpuLevel',b.dataset.cpu); this.panel.querySelectorAll('[data-cpu]').forEach(x=>x.classList.toggle('on',x===b)); });
     const p2=$('#pick2'); if(p2) p2.onchange=()=>{ this.picks.p2=p2.value; };
     const fb=$('#fightBtn'); if(fb) fb.onclick=()=>this.localStart();
     const hb=$('#hostBtn'); if(hb) hb.onclick=()=>{ if(!BF.Net.available()) return BF.App.toast('Online play needs an internet connection','bad'); BF.Net.host(); };
@@ -119,17 +124,17 @@ const B = BF.BattleUI = {
   // ---------- match flow ----------
   localStart(){
     const d1=this.designFor(this.picks.p1), d2=this.designFor(this.picks.p2);
-    const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
+    const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), moves:BF.Settings.get('moves')!==false, d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
   },
   hostStart(){
     const ranked=this.queue==='ranked';
     if(ranked){ const a=BF.Ranked.check(this.myDesign()), b=BF.Ranked.check(this.remote.design);
       if(a.length||b.length){ BF.App.toast((a.length?'Your Bey: '+a[0]:this.remote.name+': '+b[0])+' — not ranked-legal','bad'); return; } }
-    const st=ranked?BF.Ranked.stadium():this.stadium(); const m={t:'start', ranked, stadium:st, rules:ranked?BF.Ranked.matchRules():BF.Settings.rulesFor(st.kind), decayK:ranked?BF.Ranked.decayK():BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
+    const st=ranked?BF.Ranked.stadium():this.stadium(); const m={t:'start', ranked, stadium:st, rules:ranked?BF.Ranked.matchRules():BF.Settings.rulesFor(st.kind), moves:ranked?BF.Ranked.rules.moves!==false:BF.Settings.get('moves')!==false, decayK:ranked?BF.Ranked.decayK():BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, seed:(Math.random()*1e9)|0};
     BF.Net.send(m); this.startMatch(m);
   },
   startMatch(m){
-    this.match=m; this.st='launch'; this.score=[0,0]; this.round=1; this.seed=m.seed;
+    this.match=m; this.st='launch'; this.score=[0,0]; this.round=1; this.seed=m.seed; this.lastMoves=[[],[]]; this.movesOn=m.moves!==false;
     this.F=[BF.fighter(m.d1,m.n1), BF.fighter(m.d2,m.n2)];
     this.me = this.mode==='online' && BF.Net.role==='guest' ? 1 : 0;
     this.arena.setup(m.stadium,this.F[0],this.F[1]);
@@ -152,10 +157,26 @@ const B = BF.BattleUI = {
       <div class="lp-head"><span class="${col}">${esc(label)}</span><b>${esc(f.name)}</b><span class="dim">Round ${this.round}</span></div>
       ${dual?`<div class="fl">Spin<div class="seg" id="spinSeg"><button type="button" class="on" data-sp="right">Right</button><button type="button" data-sp="left">Left</button></div></div>`:''}
       ${f.d.bit.tip==='mode'?`<div class="fl">Tip mode<div class="seg" id="modeSegL"><button type="button" class="${f.d.bit.mode!=='stamina'?'on':''}" data-md="attack">Attack</button><button type="button" class="${f.d.bit.mode==='stamina'?'on':''}" data-md="stamina">Stamina</button></div></div>`:''}
-      <label class="fl">Launch angle <output class="val" id="angOut">0°</output><input type="range" id="angIn" min="-30" max="30" step="1" value="0"></label>
+      <div class="lp-grid">
+        <div class="fl">Aim — tap where you launch from<svg class="aimpad" id="aimPad" viewBox="-60 -60 120 120"><circle r="56" class="ap-st"/><path class="ap-half" d="${who===0?'M -56 0 A 56 56 0 0 0 56 0 Z':'M -56 0 A 56 56 0 0 1 56 0 Z'}"/><circle r="20" class="ap-ring"/><circle id="aimDot" r="6" class="ap-dot ${col}" cx="0" cy="${who===0?31:-31}"/></svg></div>
+        <div class="lp-side">
+          <div class="fl">Shot<div class="shotgrid" id="shotSeg">${Object.entries(BF.SHOTS).map(([k,v],j)=>`<button type="button" class="${j===0?'on':''}" data-shot="${k}" title="${esc(v.desc)}"><b>${esc(v.label)}</b><span>${esc(v.desc)}</span></button>`).join('')}</div></div>
+          <label class="fl">Tilt <output class="val" id="angOut">0°</output><input type="range" id="angIn" min="-30" max="30" step="1" value="0"></label>
+        </div>
+      </div>
+      ${this.movesOn?this.movePicker(who):''}
       <div class="meter"><i id="meterFill"></i><span class="sweet"></span></div>
       <button class="btn primary wide big rev" id="revBtn">Hold to rev — release to launch</button>
       <div class="fine">Release in the bright zone for a full-power launch.</div>`;
+    let shot='flat', pos={a:0,r:0.55}; const picks=this.movesOn?this.defaultPicks(who):[];
+    this.panel.querySelectorAll('[data-shot]').forEach(b=>b.onclick=()=>{ shot=b.dataset.shot; this.panel.querySelectorAll('[data-shot]').forEach(x=>x.classList.toggle('on',x===b)); });
+    this.panel.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{ if(b.disabled) return; const part=+b.dataset.part; picks[part]=b.dataset.mv; this.panel.querySelectorAll(`[data-part="${part}"]`).forEach(x=>x.classList.toggle('on',x===b)); });
+    const pad=$('#aimPad'), dot=$('#aimDot');
+    pad.onpointerdown=e=>{ const r=pad.getBoundingClientRect(); let px=((e.clientX-r.left)/r.width-0.5)*120, py=((e.clientY-r.top)/r.height-0.5)*120;
+      if(who===0) py=Math.max(6,py); else py=Math.min(-6,py); const d=Math.hypot(px,py); if(d>52){ px*=52/d; py*=52/d; }
+      dot.setAttribute('cx',px); dot.setAttribute('cy',py);
+      const wy=-py, base=who===0?-Math.PI/2:Math.PI/2; let off=Math.atan2(wy,px)-base; off=Math.atan2(Math.sin(off),Math.cos(off));
+      pos={a:Math.max(-1,Math.min(1,off/0.9)), r:Math.max(0.25,Math.min(0.8,Math.hypot(px,py)/56))}; };
     let mode=f.d.bit.mode||'attack'; this.panel.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{ mode=b.dataset.md; this.panel.querySelectorAll('[data-md]').forEach(x=>x.classList.toggle('on',x===b)); });
     let spin='right'; this.panel.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ spin=b.dataset.sp; this.panel.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); });
     const ai=$('#angIn'); ai.oninput=()=>$('#angOut').textContent=(ai.value>0?'+':'')+ai.value+'°';
@@ -164,7 +185,7 @@ const B = BF.BattleUI = {
     const start=e=>{ e.preventDefault(); if(t0) return; t0=performance.now(); btn.classList.add('revving'); tick(); BF.Sfx && BF.Sfx.rev(true); };
     const end=e=>{ if(!t0) return; e&&e.preventDefault(); cancelAnimationFrame(raf); BF.Sfx && BF.Sfx.rev(false);
       const p=Math.max(0.35,power); btn.disabled=true; btn.textContent=p>0.9?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
-      this.lockLaunch(who,{power:p,angle:+ai.value,spin,mode}); };
+      this.lockLaunch(who,{power:p,angle:+ai.value,spin,mode,shot,pos,moves:picks.slice()}); };
     btn.addEventListener('pointerdown',start); btn.addEventListener('pointerup',end); btn.addEventListener('pointerleave',end);
     btn.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') start(e); }); btn.addEventListener('keyup',e=>{ if(e.key===' '||e.key==='Enter') end(e); });
   },
@@ -177,7 +198,7 @@ const B = BF.BattleUI = {
     }
     this.launches[who]=l;
     if(this.mode==='local' && who===0){ setTimeout(()=>this.launchPanel(1),650); return; }
-    if(this.mode==='cpu') this.launches[1]={power:0.7+Math.random()*0.3, angle:Math.round((Math.random()-0.5)*40), spin:Math.random()<0.5?'right':'left', mode:Math.random()<0.5?'attack':'stamina'};
+    if(this.mode==='cpu') this.launches[1]=BF.MoveAI.launch(this.F[1],this.F[0],BF.Settings.get('cpuLevel')||'normal',this.lastMoves[1]);
     setTimeout(()=>this.countdown(this.launches,(Math.random()*1e9)|0),500);
   },
   tryGo(){ if(BF.Net.role!=='host'||!this.launches[0]||!this.launches[1]) return; const seed=(Math.random()*1e9)|0; BF.Net.send({t:'go',launches:this.launches,seed}); this.countdown(this.launches,seed); },
@@ -192,8 +213,10 @@ const B = BF.BattleUI = {
     this.st='fight';
     const isGuest=this.mode==='online'&&BF.Net.role==='guest';
     this.arena.live=true; [0,1].forEach(i=>this.arena.launchFx(i));
+    this.showMoveBar(); this._usedSeen=null;
     if(isGuest){ this.sim=null; return; }
     this.sim=new BF.Sim(this.F[0],this.F[1],this.match.stadium,seed);
+    this.sim.movesOn=this.sim.elemOn=this.movesOn; this.aiMem=[{},{}]; this.aiAcc=0;
     if(this.match.decayK) this.sim.decayK=this.match.decayK;
     this.sim.launch(this.launches[0],this.launches[1]); this.acc=0; this.sendT=0; this.evQ=[];
     BF.Sfx && BF.Sfx.rip();
@@ -204,10 +227,17 @@ const B = BF.BattleUI = {
     if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
     if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); }
     if(e.k==='dash'){ BF.Sfx && BF.Sfx.dash(); }
+    if(e.k==='move') this.moveCall(e);
+    if(e.k==='status'){ const S=BF.STATUS[e.s]; if(S) this.pop(e.i,S.label.toUpperCase()+'!',S.color); BF.Sfx && BF.Sfx.status && BF.Sfx.status(); }
+    if(e.k==='lean') ar.marker && ar.marker(e.x,e.y,e.i===0?0x2ef2ff:0xff2e88);
+    if(e.k==='hit' && e.eff==='super') this.pop(null,'Super effective!','#ffd21f');
+    if(e.k==='hit' && e.eff==='weak') this.pop(null,'Not very effective…','#9aa3b5');
     if(e.k==='click'){ ar.spark(e.x,e.y,14,700,0xffd21f); BF.Sfx && BF.Sfx.click&&BF.Sfx.click(e.n); const bar=$('#bm'+(e.i+1)); if(bar){ bar.parentNode.classList.remove('pop'); void bar.offsetWidth; bar.parentNode.classList.add('pop'); } }
   },
   roundEnd(res,score,fromNet){
-    this.st='roundEnd'; if(score) this.score=score;
+    this.st='roundEnd'; if(score) this.score=score; this.hideMoveBar();
+    // moves picked this round go on cooldown for the next one
+    if(this.launches) this.lastMoves=[0,1].map(i=>(this.launches[i]&&this.launches[i].moves)||[]);
     const pts=this.rules.pts[res.how]||1;
     if(!fromNet){ this.score[res.winner]+=pts; if(this.mode==='online') BF.Net.send({t:'round',res,score:this.score}); }
     this.arena.live=false; this.arena.winFx(res.winner);
@@ -230,13 +260,67 @@ const B = BF.BattleUI = {
     $('#rematch').onclick=()=>{ if(this.mode==='online'){ if(BF.Net.role==='host') this.hostStart(); else { BF.Net.send({t:'rematch'}); $('#rematch').textContent='Asked…'; } } else this.startMatch(this.match); };
     $('#backSetup').onclick=()=>this.renderSetup();
   },
+  // ---------- v5: launch formations, move bar, lean ----------
+  moveKeys(p){ return this.mode==='local'&&p===1?['8','9','0']:['1','2','3']; },
+  defaultPicks(who){ const pools=BF.movePools(this.F[who].d), last=this.lastMoves[who]||[];
+    return ['blade','core','driver'].map(k=>(pools[k].find(m=>!last.includes(m.id))||pools[k][0]).id); },
+  movePicker(who){
+    const pools=BF.movePools(this.F[who].d), last=this.lastMoves[who]||[], picks=this.defaultPicks(who);
+    return `<div class="fl">Launch formation — pick 1 move per part<div class="mvpick">${['blade','core','driver'].map((part,pi)=>`<div class="mvrow"><span class="mvpart">${BF.PART_LABEL[part]}</span>${pools[part].map(m=>{ const E=BF.ELEMENTS[m.el], cd=last.includes(m.id);
+      return `<button type="button" class="mvchip${picks[pi]===m.id?' on':''}" data-part="${pi}" data-mv="${m.id}" style="--c:${E.color}"${cd?' disabled':''} title="${esc(BF.MOVE_KINDS[m.kind].desc)}"><i>${E.icon}</i><b>${esc(m.name)}</b>${cd?'<em>cooldown</em>':''}</button>`; }).join('')}</div>`).join('')}</div></div>`;
+  },
+  myPlayers(){ return this.mode==='local'?[0,1]:this.mode==='online'?[this.me]:[0]; },
+  showMoveBar(){
+    const bar=$('#moveBar'); if(!this.movesOn||!this.launches){ bar.hidden=true; return; }
+    bar.innerHTML=this.myPlayers().map(p=>{ const l=this.launches[p]||{}, keys=this.moveKeys(p);
+      return `<div class="mbgroup c${p+1}">${(l.moves||[]).map((id,s)=>{ const m=BF.moveById(this.F[p].d,id); if(!m) return ''; const E=BF.ELEMENTS[m.el];
+        return `<button type="button" class="mbbtn" data-p="${p}" data-s="${s}" style="--c:${E.color}" title="${esc(BF.MOVE_KINDS[m.kind].desc)}"><i>${E.icon}</i><b>${esc(m.name)}</b><kbd>${keys[s]}</kbd></button>`; }).join('')}</div>`; }).join('')
+      +`<div class="mbhint">Tap the stadium to lean${this.mode==='local'?' (your half)':''}</div>`;
+    bar.hidden=false;
+    bar.querySelectorAll('.mbbtn').forEach(b=>b.onpointerdown=e=>{ e.preventDefault(); e.stopPropagation(); this.fireMove(+b.dataset.p,+b.dataset.s); });
+  },
+  hideMoveBar(){ const b=$('#moveBar'); if(b) b.hidden=true; },
+  fireMove(p,s){
+    if(this.st!=='fight') return;
+    const btn=document.querySelector(`.mbbtn[data-p="${p}"][data-s="${s}"]`); if(!btn||btn.classList.contains('used')) return;
+    if(this.mode==='online'&&BF.Net.role==='guest'){ BF.Net.send({t:'in',k:'move',s}); btn.classList.add('used'); return; }
+    if(this.sim) this.sim.useMove(p,s);
+  },
+  lean(p,x,y){ if(this.st!=='fight') return;
+    if(this.mode==='online'&&BF.Net.role==='guest'){ BF.Net.send({t:'in',k:'lean',x,y}); this.arena.marker&&this.arena.marker(x,y,0xff2e88); return; }
+    if(this.sim) this.sim.lean(p,x,y); },
+  bindControls(){
+    $('#arena').addEventListener('pointerdown',e=>{ if(this.st!=='fight'||!this.movesOn) return; const w=this.arena.pick(e.clientX,e.clientY); if(!w) return;
+      const p=this.mode==='local'?(w.y<0?0:1):this.mode==='online'?this.me:0; this.lean(p,w.x,w.y); });
+    window.addEventListener('keydown',e=>{ if(this.st!=='fight'||$('#view-battle').hidden||e.target.matches('input,textarea,select')) return;
+      this.myPlayers().forEach(p=>{ const s=this.moveKeys(p).indexOf(e.key); if(s>=0){ e.preventDefault(); this.fireMove(p,s); } }); });
+  },
+  syncMoveBar(snap){ const key=snap.b.map(b=>b[12]||0).join(','); if(key===this._usedSeen) return; this._usedSeen=key;
+    document.querySelectorAll('.mbbtn').forEach(b=>{ const bits=snap.b[+b.dataset.p][12]||0; b.classList.toggle('used',!!(bits&(1<<+b.dataset.s))); }); },
+  moveCall(e){
+    const E=BF.ELEMENTS[e.el]||{color:'#2ef2ff'}, el=$('#moveCall');
+    el.className='movecall '+(e.i===0?'c1':'c2'); el.style.setProperty('--c',E.color);
+    el.innerHTML=`<small>${esc(this.F[e.i].name)}</small><b>${esc(e.name)}!</b>`; el.hidden=false;
+    el.style.animation='none'; void el.offsetWidth; el.style.animation='';
+    clearTimeout(this._mcT); this._mcT=setTimeout(()=>el.hidden=true,1300);
+    this.arena.moveFx && this.arena.moveFx(e.i,parseInt(E.color.slice(1),16));
+    BF.Sfx && BF.Sfx.move && BF.Sfx.move(e.kind);
+  },
+  pop(i,text,color){ const now=performance.now(); if(now-(this._popT||0)<700) return; this._popT=now;
+    const el=$('#effPop'); el.textContent=text; el.style.setProperty('--c',color); el.className='effpop'+(i==null?'':' p'+(i+1)); el.hidden=false;
+    el.style.animation='none'; void el.offsetWidth; el.style.animation=''; clearTimeout(this._popTo); this._popTo=setTimeout(()=>el.hidden=true,1000); },
+  statusFx(snap){ const ar=this.arena; if(!ar.partOn||!ar.partOn()) return;
+    snap.b.forEach(s=>{ const bits=s[11]||0; if(!bits||!s[7]) return; (BF.STATUS_KEYS||[]).forEach((k,j)=>{ if(!(bits&(1<<j))||Math.random()>0.35) return;
+      const c=parseInt(BF.STATUS[k].color.slice(1),16), a=Math.random()*Math.PI*2;
+      ar.particle(s[0]+Math.cos(a)*14,s[1]+Math.sin(a)*14,s[2]+8,Math.cos(a)*20,Math.sin(a)*20,k==='burn'?70:k==='freeze'?-10:40,0.5,c,k==='shock'?0.9:1.2,k==='burn'?-60:120); }); }); },
   // ---------- HUD ----------
-  hud(on){ $('#bhud').hidden=!on; if(on){ $('#n1').textContent=this.F[0].name; $('#n2').textContent=this.F[1].name; } },
+  hud(on){ $('#bhud').hidden=!on; if(!on) this.hideMoveBar(); if(on){ [0,1].forEach(i=>{ const els=this.movesOn?(this.F[i].els||[]):[]; $('#n'+(i+1)).innerHTML=esc(this.F[i].name)+els.map(e=>`<span class="elb" style="--c:${BF.ELEMENTS[e].color}" title="${BF.ELEMENTS[e].label}">${BF.ELEMENTS[e].icon}</span>`).join(''); }); } },
   updateHud(snap){
     if(!this.F) return;
     [0,1].forEach(i=>{
       const pips=$('#pips'+(i+1)); const t=this.rules.target;
       pips.innerHTML=Array.from({length:t},(_,k)=>`<i class="${k<this.score[i]?'on':''}"></i>`).join('');
+      const stEl=$('#st'+(i+1)); if(stEl){ const bits=snap?snap.b[i][11]||0:0; if(stEl._bits!==bits){ stEl._bits=bits; stEl.innerHTML=(BF.STATUS_KEYS||[]).filter((k,j)=>bits&(1<<j)).map(k=>`<i style="--c:${BF.STATUS[k].color}">${BF.STATUS[k].label}</i>`).join(''); } }
       if(snap){ const s=snap.b[i]; $('#s'+(i+1)).style.width=Math.max(0,Math.min(100,s[4]/s[5]*100))+'%'; const bm=$('#bm'+(i+1)); bm.style.width=Math.min(100,(s[10]||0)*100)+'%'; bm.parentNode.classList.toggle('hot',(s[10]||0)>0.66); }
       else { $('#s'+(i+1)).style.width='100%'; $('#bm'+(i+1)).style.width='0%'; }
     });
@@ -254,6 +338,7 @@ const B = BF.BattleUI = {
       else if(this.sim && this.st==='fight'){
         this.acc+=dt; const h=1/120;
         while(this.acc>=h && !this.sim.done){ this.sim.step(h); this.acc-=h; }
+        if(this.mode==='cpu' && this.movesOn){ this.aiAcc+=dt; if(this.aiAcc>=0.25){ this.aiAcc=0; BF.MoveAI.tick(this.sim,1,BF.Settings.get('cpuLevel')||'normal',this.aiMem[1]); } }
         const ev=this.sim.events.splice(0); ev.forEach(e=>this.fx(e)); if(this.mode==='online') this.evQ.push(...ev);
         snap=this.sim.snapshot();
         if(this.mode==='online'){ this.sendT-=dt; if(this.sendT<=0){ BF.Net.send({t:'s',s:snap,ev:this.evQ.splice(0)}); this.sendT=1/30; } }
@@ -264,6 +349,7 @@ const B = BF.BattleUI = {
         if(this.st==='fight'){ snap.b.forEach(s=>{ s[3]+= (s[4]||0)*dt*(s[3]>=0?1:-1)*0; }); this.updateHud(snap); if(snap.done) this.lastHow=snap.done.how; }
       }
       if(this.st==='fight' && this.mode==='online' && BF.Net.role==='guest' && snap){ this.guestAng=this.guestAng||[0,0]; snap.b.forEach((s,i)=>{ this.guestAng[i]+= (this.F[i].d.spin==='left'?1:-1)*s[4]*dt; s[3]=this.guestAng[i]; }); }
+      if(this.st==='fight' && snap){ this.syncMoveBar(snap); this.statusFx(snap); }
       this.arena.tickDebris(dt);
       this.arena.render(snap,dt);
     };

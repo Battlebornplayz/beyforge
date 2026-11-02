@@ -6,7 +6,7 @@ BF.RANKED_DEFAULT = {
   stadium:'X', size:380, roundLength:'normal', roundCustom:1,
   target:4, pts:{spin:1, over:2, burst:2, xtreme:3},
   minWeight:0, maxWeight:60, maxDiameter:52,
-  bannedTips:[], bannedInserts:[], allowMetalFill:true, allowLift:true, allowHorns:true,
+  bannedTips:[], bannedInserts:[], allowMetalFill:true, allowLift:true, allowHorns:true, moves:true,
   winRating:25, lossRating:20
 };
 BF.Ranked = {
@@ -54,7 +54,7 @@ BF.Ranked = {
         <section><h4>Build limits</h4>
           ${num('minWeight','Min weight',0,200,0.5,'g',r.minWeight)}${num('maxWeight','Max weight',1,200,0.5,'g',r.maxWeight)}
           ${num('maxDiameter','Max diameter',30,60,0.5,'mm',r.maxDiameter)}
-          <div class="chips">${chk('allowMetalFill','Metal-fill allowed')}${chk('allowLift','Lifted wings allowed')}${chk('allowHorns','Horns allowed')}</div>
+          <div class="chips">${chk('moves','Moves & elements on')}${chk('allowMetalFill','Metal-fill allowed')}${chk('allowLift','Lifted wings allowed')}${chk('allowHorns','Horns allowed')}</div>
         </section>
         <section><h4>Banned tips</h4><div class="chips">${Object.entries(BF.TIPS).map(([k,t])=>`<label class="pchip ban${r.bannedTips.includes(k)?' on':''}"><input type="checkbox" data-bt="${k}"${r.bannedTips.includes(k)?' checked':''}>${esc(t.label)}</label>`).join('')}</div>
           <h4>Banned inserts</h4><div class="chips">${Object.entries(BF.INSERTS).filter(([k])=>k!=='none').map(([k,t])=>`<label class="pchip ban${r.bannedInserts.includes(k)?' on':''}"><input type="checkbox" data-bi="${k}"${r.bannedInserts.includes(k)?' checked':''}>${esc(t.label)}</label>`).join('')}</div></section>
