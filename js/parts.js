@@ -131,7 +131,11 @@ const P = BF.Parts = {
     Object.values(p.data.paint||{}).forEach(pt=>{ if(!pt) return; const c=new THREE.Color(pt.color); const hsl={}; c.getHSL(hsl); c.setHSL((hsl.h+0.5)%1,Math.max(0.6,hsl.s),Math.min(0.62,Math.max(0.42,hsl.l))); pt.color='#'+c.getHexString(); pt.finish=Math.random()<0.5?'chrome':'pearl'; });
     return p;
   },
-  async create(slot,d,rarity,source){ const p=this.make(slot,d,rarity,source); if(p.shiny) this.shinyPaint(p); await this.put(p); return p; },
+  async create(slot,d,rarity,source,extra){ const p=this.make(slot,d,rarity,source); if(p.shiny) this.shinyPaint(p);
+    if(['legendary','limited'].includes(rarity)) p.sig=BF.sigFor(BF.partElements(d)[slot]);
+    if(extra) Object.assign(p,extra); await this.put(p); return p; },
+  // legendary & limited parts carry a signature move (older copies get one derived from their element)
+  sigOf(p,d){ if(!['legendary','limited'].includes(p.rarity)) return null; return p.sig||BF.sigFor(BF.partElements(d)[p.slot]); },
   randomDesign(system){ let d; for(let k=0;k<6;k++){ d=BF.randomDesign((Math.random()*1e9)|0); if(!system||d.system===system) break; } if(system&&d.system!==system){ d.system=system; d=BF.normalize(d); } return d; },
   async openPack(kind,source){
     const out=[];
@@ -172,12 +176,13 @@ const P = BF.Parts = {
       BF.partTree(slot).forEach(n=>{ const c=(p.tree||{})[n.id]; if(!c) return;
         if(n.kind==='perk'){ const ch=n.choices.find(x=>x.id===c); if(ch) mul[ch.stat]+=ch.v; }
         if(n.kind==='upgrade') moveLv[c]=(moveLv[c]||1)+1; });
-      unlocked.push(...this.movesUnlocked(p,pools[slot])); });
+      unlocked.push(...this.movesUnlocked(p,pools[slot])); if(d.sigs&&d.sigs[slot]) unlocked.push(slot+':sig'); });
     return {mul, moveLv, unlocked, copyIds:copies.map(p=>p.id), tiers:copies.map(p=>this.tier(p)), shiny:copies.map(p=>!!p.shiny)};
   },
   deckDesign(deck){
     const copies=deck.parts.map(id=>this.get(id)); if(copies.some(c=>!c)) return null;
-    const d=assemble(copies,deck.name); d.prog=this.progOf(copies,d); d.deckId=deck.id; return d;
+    const d=assemble(copies,deck.name); d.sigs={}; copies.forEach((p,k)=>{ const sg=this.sigOf(p,d); if(sg) d.sigs[SLOTS[k]]=sg; });
+    d.prog=this.progOf(copies,d); d.deckId=deck.id; return d;
   },
   validDeck(parts){ const c=parts.map(id=>this.get(id)); if(c.some(x=>!x)) return 'Pick a blade, a core and a driver';
     if(c.map(x=>x.slot).join()!==SLOTS.join()) return 'Pick one of each part'; if(new Set(c.map(x=>x.system)).size>1) return 'All 3 parts must be the same system (X or Burst)'; return null; },

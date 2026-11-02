@@ -33,6 +33,10 @@ const App = BF.App = {
   },
   banner(text,btn,fn){ const b=$('#announce'); $('#annMsg').innerHTML=''; $('#annMsg').textContent=text; if(btn){ const k=document.createElement('button'); k.className='btn primary'; k.textContent=btn; k.style.marginLeft='12px'; k.onclick=fn; $('#annMsg').appendChild(k); } b.hidden=false; },
   announce(text){ this._ann=text; $('#annMsg').textContent=text; $('#announce').hidden=false; },
+  // animate any coin counter from its last shown value
+  countCoins(el){ const b=el&&el.querySelector('.coin'); if(!b) return; const to=parseInt(b.textContent,10); if(isNaN(to)) return; const from=this._coins==null?to:this._coins; this._coins=to; if(from===to) return;
+    const t0=performance.now(), dur=Math.min(1200,300+Math.abs(to-from)*2); b.classList.add('counting');
+    const f=now=>{ const u=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-u,3); b.textContent=Math.round(from+(to-from)*e); if(u<1) requestAnimationFrame(f); else b.classList.remove('counting'); }; requestAnimationFrame(f); },
   toast(msg,kind){ const t=$('#toast'); t.textContent=msg; t.className='toast show '+(kind||''); clearTimeout(this._tt); this._tt=setTimeout(()=>t.className='toast',2600); },
   snapshot(){ return JSON.stringify(this.d); },
   push(){ const now=performance.now(); if(now-this.lastPush>700){ this.hist.push(this.snapshot()); if(this.hist.length>80) this.hist.shift(); this.fut=[]; } this.lastPush=now; },

@@ -67,7 +67,7 @@ BF.Shop = {
   // ---------- Shop tab ----------
   render(){
     const root=$('#shopRoot'), A=BF.Account, p=A.profile;
-    $('#shopCoins').innerHTML=p?`<b class="coin">${p.coins||0}</b> coins · LV ${p.level||1}`:'Sign in to earn coins';
+    $('#shopCoins').innerHTML=p?`<b class="coin">${p.coins||0}</b> coins · LV ${p.level||1}`:'Sign in to earn coins'; BF.App.countCoins($('#shopCoins'));
     root.innerHTML=Object.entries(CATS).map(([cat,name])=>`<section class="shopcat"><h3>${esc(name)}</h3><div class="shopgrid">${Object.keys(P[cat]).filter(k=>P[cat][k]>0).map(k=>{
       const own=this.has(cat,k), lvl=this.level(cat,k), locked=p&&(p.level||1)<lvl;
       return `<div class="shopcard${own?' owned':''}"><div class="sc-ico">${this.icon(cat,k)}</div><b>${esc(label(cat,k))}</b>

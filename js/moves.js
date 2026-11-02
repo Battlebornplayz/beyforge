@@ -108,8 +108,23 @@ BF.movePools = d=>{
   else core = ['round','octa'].includes(d.disc.shape)||d.disc.thickness>=5.5 ? ['anchor','weight','lockguard'] : ['recover','lockguard','weight'];
   const tip=BF.effTip(d), mob=tip.mob;
   let drv = mob>=0.8 ? ['drive','sweep', d.system==='X'&&d.bit.gear?'rocket':'zig'] : mob>=0.45 ? ['orbit','sweep','center'] : ['center','eternal','gravity'];
-  return { blade, core:core.map((k,i)=>mk('core',k,CORE_NAMES[k],i)), driver:drv.map((k,i)=>mk('driver',k,DRIVER_NAMES[k],i)) };
+  const out={ blade, core:core.map((k,i)=>mk('core',k,CORE_NAMES[k],i)), driver:drv.map((k,i)=>mk('driver',k,DRIVER_NAMES[k],i)) };
+  // legendary / limited parts bring a 4th, signature move
+  Object.entries(d.sigs||{}).forEach(([part,sg])=>{ if(sg&&out[part]) out[part].push({id:`${part}:sig`,part,kind:sg.kind,name:sg.name,el:sg.el||pe[part],slot:3,sig:true}); });
+  return out;
 };
+// ---------- signature moves ----------
+BF.SIG_KINDS = {
+  nova:     {desc:'SIGNATURE — a shockwave blasts the opponent away and sets them ablaze with your element.'},
+  phoenix:  {desc:'SIGNATURE — rises again: regains 30% spin, re-seats the ratchet and gains Armor.'},
+  blackhole:{desc:'SIGNATURE — 4 s: drags the opponent in and drains its spin while it’s close.'},
+  tempest:  {desc:'SIGNATURE — 3.5 s: a storm of zig-zag rushes and rapid hits.'},
+  fortress: {desc:'SIGNATURE — 4 s: Iron Wall, Anchor and Lock Guard all at once.'}
+};
+Object.entries(BF.SIG_KINDS).forEach(([k,v])=>BF.MOVE_KINDS[k]={desc:v.desc,role:'signature'});
+const SIG_BY_EL={fire:['nova','Inferno Nova'],water:['phoenix','Tidal Rebirth'],earth:['fortress','Mountain Fortress'],wind:['tempest','Cyclone Tempest'],lightning:['tempest','Thunder Tempest'],
+  ice:['fortress','Glacier Fortress'],light:['nova','Radiant Nova'],dark:['blackhole','Black Hole'],metal:['fortress','Steel Citadel'],void:['blackhole','Event Horizon']};
+BF.sigFor = el=>{ const s=SIG_BY_EL[el]||SIG_BY_EL.fire; return {kind:s[0],name:s[1],el}; };
 BF.moveById = (d,id)=>{ const p=BF.movePools(d); return [...p.blade,...p.core,...p.driver].find(m=>m.id===id)||null; };
 // default loadout: first move of each part
 BF.defaultMoves = d=>{ const p=BF.movePools(d); return [p.blade[0].id,p.core[0].id,p.driver[0].id]; };
@@ -134,7 +149,14 @@ BF.MOVE_FX = {
   orbit(s,b,o){ const r=Math.hypot(b.x,b.y)||1, tx=b.y/r*b.sign, ty=-b.x/r*b.sign; b.vx+=tx*650; b.vy+=ty*650; b.fx.orbit=0.6; },
   center(s,b,o){ b.fx.center=4; },
   eternal(s,b,o){ b.fx.eternal=5; },
-  gravity(s,b,o){ b.fx.gravity=3; }
+  gravity(s,b,o){ b.fx.gravity=3; },
+  nova(s,b,o,mul,el){ const foes=s.foes?s.foes(b.i):[o]; foes.forEach(t=>{ if(!t||!t.alive) return; const dx=t.x-b.x, dy=t.y-b.y, dd=Math.hypot(dx,dy)||1; if(dd>160) return;
+      const k=(900-dd*3)*(mul||1); t.vx+=dx/dd*k; t.vy+=dy/dd*k; t.dmg+=0.12; const st=BF.ELEMENTS[b.moveElNext||'fire'].status; if(st&&st!=='knock'&&st!=='armor') s.applyStatus(t,st); });
+    b.fx.nova=0.5; s.events.push({k:'nova',i:b.i,x:b.x,y:b.y}); },
+  phoenix(s,b,o,mul){ b.w=Math.min(b.w0,b.w+b.w0*0.3*(mul||1)); b.dmg=Math.max(0,b.dmg-0.3); b.st={}; s.applyStatus(b,'armor'); b.st.armor=4; b.fx.phoenix=1; },
+  blackhole(s,b,o){ b.fx.gravity=4; b.fx.blackhole=4; },
+  tempest(s,b,o){ b.fx.zig=3.5; b.fx.barrage=3.5; b.fx.drive=3.5; },
+  fortress(s,b,o){ b.fx.wall=4; b.fx.anchor=4; b.fx.lockguard=4; b.dmg=Math.max(0,b.dmg-0.2); }
 };
 })();
 
@@ -159,9 +181,9 @@ BF.MoveAI = {
   },
   // called ~4×/s by the host for each CPU Bey; fires moves and leans
   tick(sim, i, level, mem){
-    const L=LV[level]??1, b=sim.b[i], o=sim.b[1-i], f=sim.f[i]; if(!b||!b.alive||!o) return;
+    const L=LV[level]??1, b=sim.b[i], o=sim.nearestFoe?sim.nearestFoe(i):sim.b[1-i], f=sim.f[i]; if(!b||!b.alive||!o) return;
     mem.t=(mem.t||0)+1;
-    const d=Math.hypot(o.x-b.x,o.y-b.y)-f.R-sim.f[1-i].R, spin=b.w/b.w0, R=sim.R, r=Math.hypot(b.x,b.y);
+    const d=Math.hypot(o.x-b.x,o.y-b.y)-f.R-sim.f[o.i].R, spin=b.w/b.w0, R=sim.R, r=Math.hypot(b.x,b.y);
     const oppAttacking=['rush','barrage','weight','sweep','upper'].some(k=>o.fx[k]);
     if(Math.random()<[0.1,0.3,0.6,0.9][L]){
       for(let s=0;s<b.moves.length;s++){ if(b.used[s]) continue; const m=BF.moveById(f.d,b.moves[s]); if(!m) continue; const k=m.kind;
@@ -171,7 +193,9 @@ BF.MoveAI = {
         else if(ROAMY.includes(k)) good=d<200 || sim.t>6;
         else if(['wall','counter','anchor','orbit'].includes(k)) good=(oppAttacking&&d<120) || (k==='anchor'&&r>R*0.8) || b.dmg>0.6;
         else if(k==='lockguard') good=b.dmg>(L>=2?0.45:0.6);
-        else if(['recover','eternal','center'].includes(k)) good=spin<(L>=2?0.5:0.6);
+        else if(['recover','eternal','center','phoenix'].includes(k)) good=spin<(L>=2?0.5:0.6);
+        else if(['nova','blackhole','tempest'].includes(k)) good=d<(k==='nova'?70:180);
+        else if(k==='fortress') good=(oppAttacking&&d<120)||b.dmg>0.5;
         if(good && sim.useMove(i,s)) break; }
     }
     // lean: hunters lean at the opponent, stamina types lean back to the middle

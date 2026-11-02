@@ -58,7 +58,8 @@ const B = BF.BattleUI = {
   myName(){ const d=this.myDesign(); return BF.naming(d).full; },
   // ---------- setup screen ----------
   async renderSetup(){
-    this.st='setup'; this.hud(false); $('#banner').hidden=true;
+    this.st='setup'; this.hud(false); $('#banner').hidden=true; this.match=null;
+    if(this.mode==='adventure'){ this.panel.className='bpanel setup adv'; BF.Adventure.panel(this.panel,this); this.previewArena(); return; }
     const opts=await this.options();
     if(!opts.find(o=>o[0]===this.picks.p1) && opts.length) this.picks.p1=opts[0][0];
     const sel=(id,v)=>`<select id="${id}">${opts.map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
@@ -73,7 +74,8 @@ const B = BF.BattleUI = {
       else if(net.status==='connecting') onlineHtml=`<div class="netbox"><div class="netwait">Connecting…</div><button class="btn ghost" id="netCancel">Cancel</button></div>`;
       else if(net.status==='waiting') onlineHtml=`<div class="netbox"><div class="dim">Tell your friend this code</div><div class="bigcode">${esc(net.code)}</div><div class="netwait">Waiting for them to join…</div><button class="btn ghost" id="netCancel">Cancel</button></div>`;
       else if(net.status==='connected') onlineHtml=`<div class="netbox"><div class="netok">Connected${net.code?' · room '+esc(net.code):''}</div>
-          ${net.role==='host'?`<div class="seg sm" id="queueSeg"><button type="button" class="${this.queue!=='ranked'?'on':''}" data-q="casual">Casual</button><button type="button" class="${this.queue==='ranked'?'on':''}" data-q="ranked">Ranked</button></div>`:''}
+          ${net.role==='host'?`<div class="seg sm" id="queueSeg"><button type="button" class="${this.queue!=='ranked'?'on':''}" data-q="casual">Casual</button><button type="button" class="${this.queue==='ranked'?'on':''}" data-q="ranked">Ranked</button><button type="button" class="${this.queue==='raid'?'on':''}" data-q="raid">Co-op raid</button></div>`:''}
+          ${this.queue==='raid'&&net.role==='host'?`<div class="rankedbox"><b>CO-OP RAID</b> <span>You two vs ${esc(BF.Adventure.weekly().name)} — a giant boss Bey.</span></div>`:''}
           ${this.queue==='ranked'||net.role!=='host'?this.rankedLine():''}
           <div class="vs-line"><b class="c1">${esc(this.myName())}</b><span>vs</span><b class="c2">${esc(this.remote?this.remote.name:'waiting for their Bey…')}</b></div>
           ${net.role==='host'?`<button class="btn primary wide" id="startBtn"${this.remote?'':' disabled'}>Start match</button>`:`<div class="netwait">Waiting for the host to start…</div>`}
@@ -83,11 +85,11 @@ const B = BF.BattleUI = {
     this.panel.className='bpanel setup';
     this.panel.innerHTML=`
       <h2>Battle</h2>
-      <div class="seg" id="modeSeg">${[['cpu','vs CPU'],['local','2 players'],['online','Online']].map(([k,l])=>`<button type="button" class="${this.mode===k?'on':''}" data-mode="${k}">${l}</button>`).join('')}</div>
+      <div class="seg" id="modeSeg">${[['cpu','vs CPU'],['adventure','Adventure'],['local','2 players'],['online','Online']].map(([k,l])=>`<button type="button" class="${this.mode===k?'on':''}" data-mode="${k}">${l}</button>`).join('')}</div>
       ${online&&!opts.length?`<div class="netbox"><b>Online needs a Battle Bey</b><span class="dim">Battle Beys are built from parts you own. Grab your free starter in the Parts tab.</span><button class="btn primary" id="toParts">Open Parts</button></div>`:`<label class="fl">${online?'Your Bey':'Player 1'}${sel('pick1',this.picks.p1)}</label>`}
       ${!online&&!String(this.picks.p1).startsWith('deck:')?'<div class="fine">Practice Beys don’t earn part XP or drops — use a ⚔ Battle Bey for that.</div>':''}
       ${online?'':`<label class="fl">${this.mode==='cpu'?'CPU opponent':'Player 2'}${sel('pick2',this.picks.p2)}</label>`}
-      ${this.mode==='cpu'?`<div class="fl">CPU difficulty<div class="seg" id="cpuSeg">${Object.entries(BF.CPU_LEVELS).map(([k,l])=>`<button type="button" class="${(BF.Settings.get('cpuLevel')||'normal')===k?'on':''}" data-cpu="${k}">${l}</button>`).join('')}</div></div>`:''}
+      ${this.mode==='cpu'?`<div class="fl">CPU difficulty<div class="seg" id="cpuSeg">${Object.entries(BF.CPU_LEVELS).map(([k,l])=>`<button type="button" class="${(this.cpuLv())===k?'on':''}" data-cpu="${k}">${l}</button>`).join('')}</div></div>`:''}
       ${hostCtl?`<div class="fl">Stadium<div class="seg" id="stSeg">${[['X','Xtreme'],['Burst','Burst']].map(([k,l])=>`<button type="button" class="${this.stadiumKind===k?'on':''}" data-st="${k}">${l}</button>`).join('')}</div></div>
       <label class="fl">Stadium size <output id="sizeOut" class="val">${this.size} mm</output><input type="range" id="sizeIn" min="280" max="480" step="10" value="${this.size}"></label>
       <div class="fine">${this.rulesLine()} · ${BF.ROUND_LENGTH[BF.Settings.get('roundLength')].label.toLowerCase()} rounds — change in Settings</div>`:''}
@@ -129,11 +131,15 @@ const B = BF.BattleUI = {
     if(this.mode==='online' && (this.st==='setup')) this.renderSetup();
   },
   // ---------- match flow ----------
+  cpuLv(){ return (this.match&&this.match.cpuLevel)||BF.Settings.get('cpuLevel')||'normal'; },
   localStart(){
     const d1=this.designFor(this.picks.p1), d2=this.designFor(this.picks.p2);
     const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), moves:BF.Settings.get('moves')!==false, prog:true, d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
   },
   hostStart(){
+    if(this.queue==='raid'){ const wb=BF.Adventure.weekly(); const st=Object.assign({},BF.STADIUMS[wb.design.system==='X'?'X':'Burst'],{terrain:wb.terrain});
+      const m={t:'start', raid:true, stadium:st, rules:{target:1,pts:{spin:1,over:1,burst:1,xtreme:1}}, moves:true, prog:true, decayK:BF.Settings.decayK(), d1:this.myDesign(), d2:this.remote.design, n1:this.myName(), n2:this.remote.name, d3:wb.design, n3:wb.name, bossScale:1.45, adventure:{kind:'raid',id:wb.week}, seed:(Math.random()*1e9)|0};
+      BF.Net.send(m); this.startMatch(m); return; }
     const ranked=this.queue==='ranked';
     if(ranked){ const a=BF.Ranked.check(this.myDesign()), b=BF.Ranked.check(this.remote.design);
       if(a.length||b.length){ BF.App.toast((a.length?'Your Bey: '+a[0]:this.remote.name+': '+b[0])+' — not ranked-legal','bad'); return; } }
@@ -141,23 +147,25 @@ const B = BF.BattleUI = {
     BF.Net.send(m); this.startMatch(m);
   },
   startMatch(m){
-    this.match=m; this.st='launch'; this.score=[0,0]; this.round=1; this.seed=m.seed; this.lastMoves=[[],[]]; this.movesOn=m.moves!==false;
-    if(m.prog===false){ [m.d1,m.d2].forEach(d=>{ if(d&&d.prog) d.prog={copyIds:d.prog.copyIds,tiers:d.prog.tiers,shiny:d.prog.shiny}; }); }
+    this.match=m; this.st='launch'; this.score=[0,0]; this.round=1; this.seed=m.seed; this.lastMoves=[[],[],[]]; this.movesOn=m.moves!==false; this.raid=!!m.raid;
+    if(m.prog===false){ [m.d1,m.d2,m.d3].forEach(d=>{ if(d&&d.prog) d.prog={copyIds:d.prog.copyIds,tiers:d.prog.tiers,shiny:d.prog.shiny}; }); }
     this.progOn=m.prog!==false;
-    this.F=[BF.fighter(m.d1,m.n1), BF.fighter(m.d2,m.n2)];
+    this.F=[BF.fighter(m.d1,m.n1), m.boss2?BF.bossFighter(m.d2,m.n2,m.bossScale||1.2):BF.fighter(m.d2,m.n2)];
+    if(this.raid) this.F.push(BF.bossFighter(m.d3,m.n3,m.bossScale||1.45));
     this.me = this.mode==='online' && BF.Net.role==='guest' ? 1 : 0;
-    this.arena.setup(m.stadium,this.F[0],this.F[1]);
+    this.arena.setup(m.stadium,...this.F); this.arena.intro();
+    $('#bossHud').hidden=!this.raid; if(this.raid){ $('#bossName').textContent=this.F[2].name; }
     this.rules=m.rules||BF.Settings.rulesFor(m.stadium.kind);
     this.hud(true); this.nextRound();
   },
   nextRound(){
-    this.st='launch'; this.launches=[null,null]; this.sim=null; this.netSnap=null; this.arena.clearDebris();
+    this.st='launch'; this.launches=[null,null].concat(this.raid?[null]:[]); this.sim=null; this.netSnap=null; this.arena.clearDebris();
     $('#banner').hidden=true; this.updateHud(null);
     this.idlePose();
     if(this.mode==='online') this.launchPanel(this.me);
     else this.launchPanel(0);
   },
-  idlePose(){ const R=this.match.stadium.diameter/2; this.netSnap={b:[[0,-R*0.55,0,0,0,1,0,1,0,0],[0,R*0.55,0,0,0,1,0,1,0,0]].map((s,i)=>{ s[2]=this.match.stadium.depth*(R*0.55)**2/R; return s; })}; },
+  idlePose(){ const R=this.match.stadium.diameter/2; this.netSnap={b:[[0,-R*0.55,0,0,0,1,0,1,0,0],[0,R*0.55,0,0,0,1,0,1,0,0]].concat(this.raid?[[R*0.3,0,0,0,0,1,0,1,0,0]]:[]).map((s,i)=>{ s[2]=this.match.stadium.depth*(R*0.55)**2/R; return s; })}; },
   launchPanel(who){
     const f=this.F[who], col=who===0?'c1':'c2', dual=f.d.spin==='dual';
     const label=this.mode==='local'?`Player ${who+1}`:this.mode==='cpu'?'Your launch':'Your launch';
@@ -209,34 +217,38 @@ const B = BF.BattleUI = {
     }
     this.launches[who]=l;
     if(this.mode==='local' && who===0){ setTimeout(()=>this.launchPanel(1),650); return; }
-    if(this.mode==='cpu') this.launches[1]=BF.MoveAI.launch(this.F[1],this.F[0],BF.Settings.get('cpuLevel')||'normal',this.lastMoves[1]);
+    if(this.mode==='cpu') this.launches[1]=BF.MoveAI.launch(this.F[1],this.F[0],this.cpuLv(),this.lastMoves[1]);
+    if(this.raid) this.launches[2]=BF.MoveAI.launch(this.F[2],this.F[0],'expert',this.lastMoves[2]);
     setTimeout(()=>this.countdown(this.launches,(Math.random()*1e9)|0),500);
   },
-  tryGo(){ if(BF.Net.role!=='host'||!this.launches[0]||!this.launches[1]) return; const seed=(Math.random()*1e9)|0; BF.Net.send({t:'go',launches:this.launches,seed}); this.countdown(this.launches,seed); },
+  tryGo(){ if(BF.Net.role!=='host'||!this.launches[0]||!this.launches[1]) return; if(this.raid) this.launches[2]=BF.MoveAI.launch(this.F[2],this.F[0],'expert',this.lastMoves[2]); const seed=(Math.random()*1e9)|0; BF.Net.send({t:'go',launches:this.launches,seed}); this.countdown(this.launches,seed); },
   countdown(launches,seed){
     this.st='countdown'; this.launches=launches; this.panel.className='bpanel hidden'; this.panel.innerHTML='';
     const ban=$('#banner'); ban.hidden=false; const seq=['3','2','1','GO SHOOT!']; let i=0;
-    const step=()=>{ ban.className='banner count'+(i===3?' go':''); ban.textContent=seq[i]; BF.Sfx && BF.Sfx.beep(i===3); i++;
+    const step=()=>{ ban.className='banner count'+(i===3?' go':''); ban.textContent=seq[i]; ban.style.animation='none'; void ban.offsetWidth; ban.style.animation=''; BF.Sfx && BF.Sfx.beep(i===3); i++;
       if(i<4) setTimeout(step,560); else setTimeout(()=>{ ban.hidden=true; this.fight(seed); },520); };
     step();
   },
   fight(seed){
     this.st='fight';
     const isGuest=this.mode==='online'&&BF.Net.role==='guest';
-    this.arena.live=true; [0,1].forEach(i=>this.arena.launchFx(i));
+    this.arena.live=true; this.F.forEach((_,i)=>this.arena.launchFx(i)); this.arena.camFx=null;
     this.showMoveBar(); this._usedSeen=null;
     if(isGuest){ this.sim=null; return; }
-    this.sim=new BF.Sim(this.F[0],this.F[1],this.match.stadium,seed);
-    this.sim.movesOn=this.sim.elemOn=this.movesOn; this.aiMem=[{},{}]; this.aiAcc=0;
+    this.sim=new BF.Sim(this.F[0],this.F[1],this.match.stadium,seed,this.raid?{extra:this.F[2],teams:[0,0,1]}:undefined);
+    this.sim.movesOn=this.sim.elemOn=this.movesOn; this.aiMem=[{},{},{}]; this.aiAcc=0; this.hitStop=0;
     if(this.match.decayK) this.sim.decayK=this.match.decayK;
-    this.sim.launch(this.launches[0],this.launches[1]); this.acc=0; this.sendT=0; this.evQ=[];
+    this.sim.launch(...this.launches); this.acc=0; this.sendT=0; this.evQ=[];
     BF.Sfx && BF.Sfx.rip();
   },
   fx(e){
     const ar=this.arena;
+    if(e.k==='hit' && e.s>1500){ this.hitStop=0.07; ar.shake=Math.min(6,(ar.shake||0)+2.5); this.flash('rgba(255,255,255,.35)'); }
+    if(e.k==='gust'){ this.flash('rgba(255,230,120,.25)'); ar.lightning&&ar.lightning(); BF.Sfx&&BF.Sfx.dash(); this.pop(null,'GUST!','#ffd21f'); }
+    if(e.k==='nova'){ ar.moveFx&&ar.moveFx(e.i,0xffffff); this.flash('rgba(255,255,255,.5)'); ar.shake=Math.min(8,(ar.shake||0)+4); }
     if(e.k==='hit'){ ar.spark(e.x,e.y,this.match.stadium.depth*Math.min(Math.hypot(e.x,e.y),ar.R)**2/ar.R,e.s); BF.Sfx && BF.Sfx.clash(e.s); }
     if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
-    if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); }
+    if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); this.flash('rgba(255,46,136,.45)'); }
     if(e.k==='dash'){ BF.Sfx && BF.Sfx.dash(); }
     if(e.k==='move') this.moveCall(e);
     if(e.k==='status'){ const S=BF.STATUS[e.s]; if(S) this.pop(e.i,S.label.toUpperCase()+'!',S.color); BF.Sfx && BF.Sfx.status && BF.Sfx.status(); }
@@ -248,13 +260,14 @@ const B = BF.BattleUI = {
   roundEnd(res,score,fromNet){
     this.st='roundEnd'; if(score) this.score=score; this.hideMoveBar();
     // moves picked this round go on cooldown for the next one
-    if(this.launches) this.lastMoves=[0,1].map(i=>(this.launches[i]&&this.launches[i].moves)||[]);
+    if(this.launches) this.lastMoves=[0,1,2].map(i=>(this.launches[i]&&this.launches[i].moves)||[]);
     const pts=this.rules.pts[res.how]||1;
     if(!fromNet){ this.score[res.winner]+=pts; if(this.mode==='online') BF.Net.send({t:'round',res,score:this.score}); }
-    this.arena.live=false; this.arena.winFx(res.winner);
-    const w=this.F[res.winner]; const ban=$('#banner');
+    this.arena.live=false;
+    if(this.raid){ if(res.winner===0){ this.arena.winFx(0); this.arena.winFx(1); } else this.arena.winFx(2); } else this.arena.winFx(res.winner);
+    const wName=this.raid?(res.winner===0?'Raid team':this.F[2].name):this.F[res.winner].name; const ban=$('#banner');
     ban.hidden=false; ban.className='banner finish '+res.how+(res.winner===0?' c1':' c2');
-    ban.innerHTML=`<small>${FINISH[res.how]}</small><b>${esc(w.name)}</b><span>+${pts} ${pts>1?'points':'point'}</span>`;
+    ban.innerHTML=`<small>${FINISH[res.how]}</small><b>${esc(wName)}</b><span>+${pts} ${pts>1?'points':'point'}</span>`;
     BF.Sfx && BF.Sfx.finish(res.how);
     this.updateHud(null);
     const over=this.score[0]>=this.rules.target||this.score[1]>=this.rules.target;
@@ -262,19 +275,22 @@ const B = BF.BattleUI = {
   },
   matchEnd(){
     this.st='matchEnd'; const win=this.score[0]>this.score[1]?0:1; const ban=$('#banner'); ban.hidden=true;
+    const myTeam=this.raid?0:this.me;
     let line='';
-    if(this.mode!=='local'){ const won=win===this.me; const rec=BF.Records.add(won,this.lastHow||'spin',this.F[this.me].name,this.mode==='online',!!(this.match&&this.match.ranked)); line=`<div class="record">${won?'Victory':'Defeat'} · record ${rec.wins}–${rec.losses}</div>`; BF.Ach && BF.Ach.check({won,how:this.lastHow,score:this.score,me:this.me,mode:this.mode,f:this.F[this.me]}); }
+    const adv=this.match.adventure; if(adv) setTimeout(()=>BF.Adventure.done(adv,win===myTeam,this).then(lines=>{ const box=document.querySelector('.bpanel.result .advres'); if(box&&lines) box.innerHTML=lines; }).catch(e=>console.warn(e)),200);
+    if(this.mode!=='local'){ const won=win===myTeam; const rec=BF.Records.add(won,this.lastHow||'spin',this.F[this.me].name,this.mode==='online',!!(this.match&&this.match.ranked)); line=`<div class="record">${won?'Victory':'Defeat'} · record ${rec.wins}–${rec.losses}</div>`; BF.Ach && BF.Ach.check({won,how:this.lastHow,score:this.score,me:this.me,mode:this.mode,f:this.F[this.me]}); }
     const myD=this.me===1?this.match.d2:this.match.d1;
-    if(this.mode!=='local' && BF.Parts && myD && myD.prog && myD.prog.copyIds) setTimeout(()=>BF.Parts.reward(myD,{won:win===this.me,rounds:this.round,mode:this.mode,cpuLevel:BF.Settings.get('cpuLevel')}).then(r=>{
+    if(this.mode!=='local' && BF.Parts && myD && myD.prog && myD.prog.copyIds) setTimeout(()=>BF.Parts.reward(myD,{won:win===myTeam,rounds:this.round,mode:this.mode,cpuLevel:this.cpuLv()}).then(r=>{
       if(!r) return; const box=document.querySelector('.bpanel.result .rewards'); if(!box) return;
       box.innerHTML=`<div>+${r.xpGain} part XP</div>${r.ups.map(u=>`<div class="lvup">⬆ ${esc(u)}</div>`).join('')}${r.drop?`<div class="dropline" style="--c:${BF.RARITY[r.drop.rarity].color}">🎁 Part drop: <b>${r.drop.shiny?'✨ Shiny ':''}${esc(BF.RARITY[r.drop.rarity].label)} ${esc(r.drop.name)}</b></div>`:''}`;
       if(r.drop) BF.Sfx&&BF.Sfx.finish&&BF.Sfx.finish('xtreme'); }).catch(e=>console.warn(e)),300);
     this.panel.className='bpanel result';
-    this.panel.innerHTML=`<div class="res-title ${win===0?'c1':'c2'}">${esc(this.F[win].name)} wins</div>
-      <div class="res-score"><b class="c1">${this.score[0]}</b><span>–</span><b class="c2">${this.score[1]}</b></div>${line}<div class="rewards"></div>
-      <div class="res-acts">${this.mode==='online'&&BF.Net.role==='guest'?'<button class="btn primary" id="rematch">Ask for rematch</button>':'<button class="btn primary" id="rematch">Rematch</button>'}<button class="btn" id="backSetup">Change Beys</button></div>`;
+    const title=this.raid?(win===0?'Raid cleared!':esc(this.F[2].name)+' wins'):esc(this.F[win].name)+' wins';
+    this.panel.innerHTML=`<div class="res-title ${win===0?'c1':'c2'}">${title}</div>
+      <div class="res-score"><b class="c1">${this.score[0]}</b><span>–</span><b class="c2">${this.score[1]}</b></div>${line}<div class="rewards"></div><div class="advres"></div>
+      <div class="res-acts">${this.mode==='online'&&BF.Net.role==='guest'?'<button class="btn primary" id="rematch">Ask for rematch</button>':'<button class="btn primary" id="rematch">Rematch</button>'}<button class="btn" id="backSetup">${adv&&!this.raid?'Back to Adventure':'Change Beys'}</button></div>`;
     $('#rematch').onclick=()=>{ if(this.mode==='online'){ if(BF.Net.role==='host') this.hostStart(); else { BF.Net.send({t:'rematch'}); $('#rematch').textContent='Asked…'; } } else this.startMatch(this.match); };
-    $('#backSetup').onclick=()=>this.renderSetup();
+    $('#backSetup').onclick=()=>{ if(adv&&!this.raid) this.mode='adventure'; this.renderSetup(); };
   },
   // ---------- v5: launch formations, move bar, lean ----------
   moveKeys(p){ return this.mode==='local'&&p===1?['8','9','0']:['1','2','3']; },
@@ -330,6 +346,7 @@ const B = BF.BattleUI = {
     snap.b.forEach(s=>{ const bits=s[11]||0; if(!bits||!s[7]) return; (BF.STATUS_KEYS||[]).forEach((k,j)=>{ if(!(bits&(1<<j))||Math.random()>0.35) return;
       const c=parseInt(BF.STATUS[k].color.slice(1),16), a=Math.random()*Math.PI*2;
       ar.particle(s[0]+Math.cos(a)*14,s[1]+Math.sin(a)*14,s[2]+8,Math.cos(a)*20,Math.sin(a)*20,k==='burn'?70:k==='freeze'?-10:40,0.5,c,k==='shock'?0.9:1.2,k==='burn'?-60:120); }); }); },
+  flash(c){ const f=$('#bflash'); if(!f||(BF.Settings&&!BF.Settings.get('shake'))) return; f.style.background=c; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); },
   // ---------- HUD ----------
   hud(on){ $('#bhud').hidden=!on; if(!on) this.hideMoveBar(); if(on){ [0,1].forEach(i=>{ const els=this.movesOn?(this.F[i].els||[]):[]; $('#n'+(i+1)).innerHTML=esc(this.F[i].name)+els.map(e=>`<span class="elb" style="--c:${BF.ELEMENTS[e].color}" title="${BF.ELEMENTS[e].label}">${BF.ELEMENTS[e].icon}</span>`).join(''); }); } },
   updateHud(snap){
@@ -341,7 +358,8 @@ const B = BF.BattleUI = {
       if(snap){ const s=snap.b[i]; $('#s'+(i+1)).style.width=Math.max(0,Math.min(100,s[4]/s[5]*100))+'%'; const bm=$('#bm'+(i+1)); bm.style.width=Math.min(100,(s[10]||0)*100)+'%'; bm.parentNode.classList.toggle('hot',(s[10]||0)>0.66); }
       else { $('#s'+(i+1)).style.width='100%'; $('#bm'+(i+1)).style.width='0%'; }
     });
-    $('#roundLbl').textContent='Round '+this.round;
+    $('#roundLbl').textContent=this.raid?'RAID':'Round '+this.round;
+    if(this.raid){ const s=snap&&snap.b[2]; $('#bossSpin').style.width=(s?Math.max(0,Math.min(100,s[4]/s[5]*100)):100)+'%'; $('#bossBurst').style.width=(s?Math.min(100,(s[10]||0)*100):0)+'%'; }
   },
   // ---------- main loop ----------
   loop(){
@@ -353,22 +371,24 @@ const B = BF.BattleUI = {
       let snap=null;
       if(this.st==='setup' && this.preview){ this.preview.ang-=dt*30; const R=this.arena.R||190; snap={b:[[0,0,0,this.preview.ang,1,1,0,1,0,0],[0,0,0,0,1,1,0,0,1,0]]}; }
       else if(this.sim && this.st==='fight'){
-        this.acc+=dt; const h=1/120;
+        if(this.hitStop>0){ this.hitStop-=dt; } else this.acc+=dt; const h=1/120;
         while(this.acc>=h && !this.sim.done){ this.sim.step(h); this.acc-=h; }
-        if(this.mode==='cpu' && this.movesOn){ this.aiAcc+=dt; if(this.aiAcc>=0.25){ this.aiAcc=0; BF.MoveAI.tick(this.sim,1,BF.Settings.get('cpuLevel')||'normal',this.aiMem[1]); } }
+        if((this.mode==='cpu'||this.raid) && this.movesOn){ this.aiAcc+=dt; if(this.aiAcc>=0.25){ this.aiAcc=0; if(this.raid) BF.MoveAI.tick(this.sim,2,'expert',this.aiMem[2]); else BF.MoveAI.tick(this.sim,1,this.cpuLv(),this.aiMem[1]); } }
         const ev=this.sim.events.splice(0); ev.forEach(e=>this.fx(e)); if(this.mode==='online') this.evQ.push(...ev);
         snap=this.sim.snapshot();
         if(this.mode==='online'){ this.sendT-=dt; if(this.sendT<=0){ BF.Net.send({t:'s',s:snap,ev:this.evQ.splice(0)}); this.sendT=1/30; } }
         this.updateHud(snap);
-        if(this.sim.done){ this.lastHow=this.sim.done.how; const res=this.sim.done; this.sim=null; if(this.mode==='online') BF.Net.send({t:'s',s:snap,ev:this.evQ.splice(0)}); setTimeout(()=>this.roundEnd(res),700); }
+        if(this.sim.done){ this.lastHow=this.sim.done.how; const res=this.sim.done;
+          const lost=this.sim.b.filter(b=>b.team!==res.winner).sort((x,y)=>(y.outT||0)-(x.outT||0))[0]; if(lost){ this.arena.focus(lost.x,lost.y,lost.z,1.7); this.slow=1.1; } this.sim=null; if(this.mode==='online') BF.Net.send({t:'s',s:snap,ev:this.evQ.splice(0)}); setTimeout(()=>this.roundEnd(res),700); }
       } else if(this.netSnap){
         snap=this.netSnap;
         if(this.st==='fight'){ snap.b.forEach(s=>{ s[3]+= (s[4]||0)*dt*(s[3]>=0?1:-1)*0; }); this.updateHud(snap); if(snap.done) this.lastHow=snap.done.how; }
       }
       if(this.st==='fight' && this.mode==='online' && BF.Net.role==='guest' && snap){ this.guestAng=this.guestAng||[0,0]; snap.b.forEach((s,i)=>{ this.guestAng[i]+= (this.F[i].d.spin==='left'?1:-1)*s[4]*dt; s[3]=this.guestAng[i]; }); }
       if(this.st==='fight' && snap){ this.syncMoveBar(snap); this.statusFx(snap); }
-      this.arena.tickDebris(dt);
-      this.arena.render(snap,dt);
+      let rdt=dt; if(this.slow>0){ this.slow-=dt; rdt=dt*0.3; }
+      this.arena.tickDebris(rdt);
+      this.arena.render(snap,rdt);
     };
     requestAnimationFrame(frame);
   }

@@ -14,7 +14,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span>BEY<b>FORGE</b></span><em>V5.1</em></div>
+  <div class="brand"><canvas id="logoSpin" width="34" height="34" aria-hidden="true"></canvas><span>BEY<b>FORGE</b></span><em>V5.2</em></div>
   <nav class="tabs" id="tabs">
     <button data-tab="forge" class="on">Forge</button>
     <button data-tab="battle">Battle</button>
@@ -56,6 +56,8 @@
     <div class="roundlbl" id="roundLbl"></div>
     <div class="pcard c2"><b id="n2"></b><div class="spinbar"><i id="s2"></i></div><div class="burstbar" title="Burst meter"><i id="bm2"></i></div><div class="pstat" id="st2"></div><div class="pips" id="pips2"></div></div>
   </div>
+  <div class="bosshud" id="bossHud" hidden><b id="bossName">BOSS</b><div class="bossbar"><i id="bossSpin"></i></div><div class="burstbar boss"><i id="bossBurst"></i></div></div>
+  <div class="bflash" id="bflash"></div>
   <div class="banner" id="banner" hidden></div>
   <div class="movecall" id="moveCall" hidden></div>
   <div class="effpop" id="effPop" hidden></div>
@@ -140,6 +142,7 @@
 <script src="js/geometry.js"></script>
 <script src="js/viewer.js"></script>
 <script src="js/hd.js"></script>
+<script src="js/terrain.js"></script>
 <script src="js/physics.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/paint.js"></script>
@@ -165,6 +168,7 @@
 <script src="js/gallery.js"></script>
 <script src="js/parts.js"></script>
 <script src="js/parts-ui.js"></script>
+<script src="js/adventure.js"></script>
 <script src="js/tour.js"></script>
 <script src="js/app.js"></script>
 <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>

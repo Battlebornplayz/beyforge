@@ -102,6 +102,8 @@ BF.Viewer = class {
   }
   setAssembly(asm){
     this.clear(); this.asm=asm; const d=asm.d;
+    const key=[d.system,d.blade.shape,d.blade.wings,d.bit.tip,d.ratchet.points,d.disc.shape,(d.blade.wingShapes||[]).join(),d.deco.horns&&d.deco.horns.count,d.chip&&d.chip.on].join('|');
+    if(this._shapeKey&&key!==this._shapeKey) this.popT=0; this._shapeKey=key;
     const clip=this.state.section?[this.clip]:null;
     asm.parts.forEach((part,ix)=>{
       const g=new T.Group(); g.userData={z0:part.z0, ix, id:part.id};
@@ -152,6 +154,7 @@ BF.Viewer = class {
     const dir=this.asm && this.asm.d.spin==='left' ? 1 : -1;
     if(st.spin){ this.spinAngle+=dir*dt*st.speed*(st.section?2.2:18); }
     this.rig.rotation.z=this.spinAngle;
+    if(this.popT!=null){ this.popT+=dt; const k=1+0.09*Math.exp(-this.popT*5)*Math.sin(this.popT*20); this.rig.scale.setScalar(k); if(this.popT>1.2){ this.popT=null; this.rig.scale.setScalar(1); } }
     const t=performance.now()/1000;
     if(st.spin && !st.section && st.explodeT<0.05){ this.rig.rotation.x=Math.sin(t*1.7)*0.012; this.rig.rotation.y=Math.cos(t*1.7)*0.012; } else { this.rig.rotation.x=0; this.rig.rotation.y=0; }
     if(st.stadium && this.stadium){ this.rig.position.z=0; }

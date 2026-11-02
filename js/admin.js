@@ -9,13 +9,13 @@ BF.Admin = {
   tab:'ranks',
   render(root){
     if(!root) return;
-    const tabs=[['ranks','Ranks',A.can('manageRoles')],['players','Players',A.can('grant')||A.can('moderate')],['announce','Announcement',A.can('manageGame')],['ranked','Ranked rules',A.can('manageGame')]].filter(t=>t[2]);
+    const tabs=[['ranks','Ranks',A.can('manageRoles')],['players','Players',A.can('grant')||A.can('moderate')],['announce','Announcement',A.can('manageGame')],['ranked','Ranked rules',A.can('manageGame')],['events','Weekly boss',A.can('manageGame')]].filter(t=>t[2]);
     if(!tabs.find(t=>t[0]===this.tab)) this.tab=tabs[0]&&tabs[0][0];
     root.innerHTML=`<h3>${A.isOwner?'Owner panel':'Staff panel'} <span class="cnt gold">${A.isOwner?'OWNER':'STAFF'}</span></h3>
       <div class="seg sm admtabs">${tabs.map(([k,l])=>`<button type="button" class="${this.tab===k?'on':''}" data-t="${k}">${l}</button>`).join('')}</div><div id="admBody"></div>`;
     root.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{ this.tab=b.dataset.t; this.render(root); });
     const body=root.querySelector('#admBody');
-    if(this.tab==='ranks') this.ranks(body); else if(this.tab==='players') this.players(body); else if(this.tab==='announce') this.announce(body); else if(this.tab==='ranked') BF.Ranked.editor(body);
+    if(this.tab==='ranks') this.ranks(body); else if(this.tab==='players') this.players(body); else if(this.tab==='announce') this.announce(body); else if(this.tab==='ranked') BF.Ranked.editor(body); else if(this.tab==='events') this.events(body);
   },
   ranks(el){
     const roles=Object.entries(A.roles).sort((a,b)=>(b[1].order||0)-(a[1].order||0));
@@ -65,6 +65,22 @@ BF.Admin = {
         if(a==='pack'||a==='crate') c.onclick=()=>ref.collection('inbox').add({type:'pack',kind:a,from:A.user.uid,fromName:A.profile.name,ts:FV.serverTimestamp()}).then(()=>BF.App.toast(`Sent ${p.name} a ${a==='crate'?'legendary crate':'booster pack'}`,'good')).catch(err);
         if(a==='ban') c.onclick=()=>ref.update({banned:!p.banned}).then(()=>{ p.banned=!p.banned; c.textContent=p.banned?'Unban':'Ban'; BF.App.toast(p.banned?`${p.name} banned`:`${p.name} unbanned`); }).catch(err);
       }); });
+  },
+  events(el){
+    const Adv=BF.Adventure, cur=Adv._override&&Adv._override.week===Adv.week()?Adv._override:{}, wb=Adv.weekly();
+    el.innerHTML=`<p class="dim small">Set this week’s boss for everyone (Adventure weekly boss + co-op raids). Leave it alone and a new boss rotates in every week automatically.</p>
+      <div class="rk-grid"><section>
+        <label class="rk-f"><span>Boss name</span><input class="txt sm" id="wbName" maxlength="28" value="${esc(cur.name||wb.name)}"></label>
+        <label class="rk-f"><span>Element</span><select id="wbEl">${Object.entries(BF.ELEMENTS).map(([k,e])=>`<option value="${k}"${(cur.element||wb.el)===k?' selected':''}>${e.icon} ${e.label}</option>`).join('')}</select></label>
+        <label class="rk-f"><span>Stadium</span><select id="wbTer">${Object.entries(BF.TERRAINS).map(([k,t])=>`<option value="${k}"${(cur.terrain||wb.terrain)===k?' selected':''}>${t.label}</option>`).join('')}</select></label>
+        <label class="rk-f"><span>Power</span><span class="num-wrap"><input class="num" type="number" id="wbPow" min="0" max="100" value="${cur.power!=null?cur.power:20}"><span class="unit">% stronger</span></span></label>
+        <label class="rk-f"><span>Design seed</span><span class="num-wrap"><input class="num" type="number" id="wbSeed" value="${cur.seed||''}" placeholder="random"><span class="unit">change for a new look</span></span></label>
+      </section></div>
+      <div class="addrow"><button class="btn primary" id="wbSave">Publish weekly boss</button><button class="btn ghost" id="wbAuto">Back to auto-rotate</button></div>`;
+    const doc=A.db.collection('config').doc('weekly');
+    el.querySelector('#wbSave').onclick=()=>doc.set({week:Adv.week(),name:el.querySelector('#wbName').value.trim()||wb.name,element:el.querySelector('#wbEl').value,terrain:el.querySelector('#wbTer').value,
+      power:Math.max(0,Math.min(100,+el.querySelector('#wbPow').value||0)),seed:+el.querySelector('#wbSeed').value||Math.floor(Math.random()*1e9)}).then(()=>BF.App.toast('Weekly boss published','good')).catch(err);
+    el.querySelector('#wbAuto').onclick=()=>doc.set({week:-1}).then(()=>BF.App.toast('Weekly boss back on auto-rotate')).catch(err);
   },
   announce(el){
     el.innerHTML=`<p class="dim small">Shows a banner to every player the next time they open BeyForge.</p>

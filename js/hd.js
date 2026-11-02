@@ -55,7 +55,7 @@ function floorTexture(kind,size){
   const t=new T.CanvasTexture(c); t.encoding=T.sRGBEncoding; t.anisotropy=8; return t;
 }
 function planarUV(geo,R){ const p=geo.attributes.position.array, uv=new Float32Array(p.length/3*2); for(let i=0,j=0;i<p.length;i+=3,j+=2){ uv[j]=p[i]/(2*R)+0.5; uv[j+1]=p[i+1]/(2*R)+0.5; } geo.setAttribute('uv',new T.BufferAttribute(uv,2)); }
-function neon(color,intensity){ return new T.MeshStandardMaterial({color:0x000000,emissive:new T.Color(color),emissiveIntensity:intensity||2.2,roughness:0.4}); }
+function neon(color,intensity){ const m=new T.MeshStandardMaterial({color:0x000000,emissive:new T.Color(color),emissiveIntensity:intensity||2.2,roughness:0.4}); m.userData.neon=true; return m; }
 
 // ---------- HD stadium (replaces the v3 builder; same interface) ----------
 BF.buildStadium = function(kind, diameter){

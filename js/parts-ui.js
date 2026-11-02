@@ -63,7 +63,7 @@ const UI = BF.PartsUI = {
   render(){
     const root=$('#partsRoot'); if(!root||$('#view-parts').hidden) return;
     const Pa=P(), A=BF.Account, coins=A&&A.profile?A.profile.coins||0:null;
-    $('#partsCoins').innerHTML=coins==null?'Sign in to earn coins':`<b class="coin">${coins}</b> coins · ${Pa.bladerPoints()} blader pts`;
+    $('#partsCoins').innerHTML=coins==null?'Sign in to earn coins':`<b class="coin">${coins}</b> coins · ${Pa.bladerPoints()} blader pts`; BF.App.countCoins($('#partsCoins'));
     if(!Pa.starterDone()){ root.innerHTML=`<div class="starterbox"><h3>Pick your starter</h3><p class="dim">Battle Beys are built from parts you own. Choose a starter Bey — you’ll get its 3 parts plus a box of 3 extra commons.</p><div class="startergrid" id="starterGrid"><span class="netwait">Loading starters…</span></div></div>`; this.starters(); return; }
     const rarOrder=['limited','legendary','epic','rare','common'];
     let list=Pa.list.filter(p=>this.filter==='all'||p.slot===this.filter);
@@ -122,8 +122,9 @@ const UI = BF.PartsUI = {
   detail(id){
     const Pa=P(), p=Pa.get(id); if(!p) return; const m=$('#partModal'), b=$('#partBody'); m.hidden=false;
     const L=BF.partLevel(p.xp), evLeft=Pa.evPoints(p)-Pa.evUsed(p), A=BF.Account, ivEdit=A&&A.can&&A.can('editIV');
-    const pools=BF.movePools(Pa.assemble([p.slot==='blade'?p:this.dummy('blade',p.system),p.slot==='core'?p:this.dummy('core',p.system),p.slot==='driver'?p:this.dummy('driver',p.system)]));
-    const pool=pools[p.slot], unl=Pa.movesUnlocked(p,pool), moveLv={}; Object.values(p.tree||{}); BF.partTree(p.slot).forEach(n=>{ const c=(p.tree||{})[n.id]; if(n.kind==='upgrade'&&c) moveLv[c]=(moveLv[c]||1)+1; });
+    const dd=Pa.assemble([p.slot==='blade'?p:this.dummy('blade',p.system),p.slot==='core'?p:this.dummy('core',p.system),p.slot==='driver'?p:this.dummy('driver',p.system)]); const sg=Pa.sigOf(p,dd); if(sg) dd.sigs={[p.slot]:sg};
+    const pools=BF.movePools(dd);
+    const pool=pools[p.slot], unl=Pa.movesUnlocked(p,pool).concat(sg?[p.slot+':sig']:[]), moveLv={}; Object.values(p.tree||{}); BF.partTree(p.slot).forEach(n=>{ const c=(p.tree||{})[n.id]; if(n.kind==='upgrade'&&c) moveLv[c]=(moveLv[c]||1)+1; });
     const tree=BF.partTree(p.slot).map(n=>{ const got=L.lv>=n.lv, ch=(p.tree||{})[n.id];
       let body='';
       if(n.kind==='perk') body=ch?`<em>${esc(n.choices.find(c=>c.id===ch).label)}</em>`:got?n.choices.map(c=>`<button class="btn sm" data-ch="${n.id}:${c.id}">${esc(c.label)}</button>`).join(''):'';
@@ -138,7 +139,7 @@ const UI = BF.PartsUI = {
         <section><h4>IVs <span class="dim small">${ivEdit?'(staff can edit)':'locked forever'}</span></h4>${Object.entries(BF.PSTATS).map(([s,l])=>`<div class="ivrow"><span>${l}</span><div class="ivbar"><i style="width:${p.iv[s]/31*100}%"></i></div>${ivEdit?`<input class="num sm" type="number" min="0" max="31" value="${p.iv[s]}" data-iv="${s}">`:`<b class="mono">${p.iv[s]}</b>`}<em class="grade g-${BF.ivGrade(p.iv[s])}">${BF.ivGrade(p.iv[s])}</em></div>`).join('')}</section>
         <section><h4>EVs <span class="dim small">${evLeft} point${evLeft===1?'':'s'} to spend · +${BF.PART_LIMITS.EV_PER_LV} per level</span></h4>${Object.entries(BF.PSTATS).map(([s,l])=>`<div class="ivrow"><span>${l}</span><div class="ivbar ev"><i style="width:${(p.ev[s]||0)/30*100}%"></i></div><b class="mono">${p.ev[s]||0}</b><span class="evbtn"><button class="btn sm" data-ev="${s}:-1">−</button><button class="btn sm" data-ev="${s}:1"${evLeft<=0?' disabled':''}>+</button></span></div>`).join('')}
           <button class="btn ghost sm" data-evreset>Reset EVs</button></section>
-        <section><h4>Moves</h4>${pool.map(mv=>{ const ok=unl.includes(mv.id), E=BF.ELEMENTS[mv.el], lv=moveLv[mv.id]||1; return `<div class="kitmv${ok?'':' lockd'}" style="--c:${E.color}"><i>${E.icon}</i><b>${esc(mv.name)}${lv>1?' '+['','II','III'][lv-1]:''}</b><em>${ok?esc(BF.MOVE_KINDS[mv.kind].desc):'Unlocks at part level '+(mv.slot===1?3:8)}</em></div>`; }).join('')}</section>
+        <section><h4>Moves</h4>${pool.map(mv=>{ const ok=unl.includes(mv.id), E=BF.ELEMENTS[mv.el], lv=moveLv[mv.id]||1; return `<div class="kitmv${ok?'':' lockd'}" style="--c:${E.color}"><i>${E.icon}</i><b>${esc(mv.name)}${lv>1?' '+['','II','III'][lv-1]:''}</b><em>${ok?esc(BF.MOVE_KINDS[mv.kind].desc):'Unlocks at part level '+(mv.slot===1?3:8)}</em>${mv.sig?'<span class="sigtag">SIGNATURE</span>':''}</div>`; }).join('')}</section>
         <section><h4>Skill tree</h4><div class="ptree">${tree}</div></section>
         <section><h4>Paint <span class="dim small">shape is locked on owned parts</span></h4><div class="pd-paint">${Object.entries(p.data.paint||{}).filter(([,v])=>v).map(([k,v])=>`<label class="pswatch"><input type="color" value="${v.color}" data-paint="${k}"><span>${esc(k)}</span></label>`).join('')}</div></section>
       </div>
