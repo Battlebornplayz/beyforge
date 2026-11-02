@@ -10,6 +10,9 @@ BF.PACK_DEFAULTS = {
   element:{name:'Element Pack',    desc:'3 parts that all share today’s element.',     model:'pack',  colors:['#ff6a1a','#ffd21f'], price:600,  gems:0,  count:3, slots:'each',   odds:{common:40,rare:40,epic:17,legendary:3},  shiny:64, pity:35, enabled:true, element:'daily'},
   elite:  {name:'Elite Pack',      desc:'3 parts, Rare or better guaranteed.',        model:'pack',  colors:['#a07bff','#ff2e88'], price:900,  gems:0,  count:3, slots:'each',   odds:{common:0,rare:55,epic:35,legendary:10},  shiny:40, pity:15, enabled:true},
   mystery:{name:'Mystery Crate',   desc:'1 part — Epic or Legendary.',                model:'crate', colors:['#ff7a1a','#2ef2ff'], price:1500, gems:20, count:1, slots:'random', odds:{common:0,rare:0,epic:60,legendary:40},  shiny:20, pity:4,  enabled:true},
+  burst:  {name:'Burst Booster',   desc:'3 Burst parts — a layer, a disc and a driver.', model:'pack', colors:['#1f8bff','#ffd21f'], price:400, gems:0, count:3, slots:'each', odds:{common:55,rare:30,epic:12,legendary:3}, shiny:64, pity:35, enabled:true, system:'Burst'},
+  burstcrate:{name:'Burst Legend Crate', desc:'1 guaranteed Legendary Burst part.', model:'crate', colors:['#ff2e88','#ffd21f'], price:3000, gems:40, count:1, slots:'random', odds:{common:0,rare:0,epic:0,legendary:100}, shiny:32, pity:0, enabled:true, system:'Burst'},
+  xbooster:{name:'X Booster',      desc:'3 Beyblade X-style parts — a blade, a ratchet and a bit.', model:'pack', colors:['#ffe600','#16171f'], price:400, gems:0, count:3, slots:'each', odds:{common:55,rare:30,epic:12,legendary:3}, shiny:64, pity:35, enabled:true, system:'X'},
   crate:  {name:'Legendary Crate', desc:'1 guaranteed Legendary part (IVs 20+).',     model:'crate', colors:['#ffd36a','#ffb020'], price:3000, gems:40, count:1, slots:'random', odds:{common:0,rare:0,epic:0,legendary:100}, shiny:32, pity:0,  enabled:true}
 };
 const SLOTS=['blade','core','driver'];
@@ -44,7 +47,7 @@ const K = BF.Packs = {
       let rar=this.roll(p.odds);
       if(p.pity>0 && count+1>=p.pity && !gotLeg && i===p.count-1) rar='legendary';   // pity: guaranteed on the last slot
       // duplicate protection: re-roll the design (up to 4×) if you already own this exact part at this rarity
-      let d, tries=0; const sys=out[0]?out[0].system:(Math.random()<0.6?'X':'Burst');
+      let d, tries=0; const sys=p.system||(out[0]?out[0].system:(Math.random()<0.6?'X':'Burst'));
       do{ d=el&&BF.designForElement?BF.designForElement((Math.random()*1e9)|0,el):P.randomDesign(sys); if(p.slots==='each'&&d.system!==sys){ d.system=sys; d=BF.normalize(d); } tries++; }
       while(tries<4 && P.list.some(x=>x.rarity===rar&&x.name===BF.Parts.nameOf(slot,BF.Parts.extract(d,slot))));
       const part=await P.create(slot,d,rar,source||id,{shiny:Math.random()<1/(p.shiny||64)});

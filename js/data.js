@@ -97,7 +97,7 @@ BF.PRESETS = [
   {id:'onyx', name:'Onyx Lynx', sys:'X', blurb:'5-wing saw balance type', patch:{
     system:'X', blade:{shape:'saw',wings:5,wingWidth:0.85,depth:0.3,sweep:6,slope:6,height:10,tipHeight:5,color:'#16171f'},
     ratchet:{points:5,height:60}, bit:{tip:'point',gear:true,color:'#2ef2ff'}, deco:{emblem:'eye',accent:'#ff2e88',texture:'none'}, weights:{insert:'m3',count:5,radius:16}}},
-  {id:'valkyr', name:'Valkyr Strike', sys:'Burst', blurb:'3-blade rubber rush attacker', patch:{
+  {id:'valkyr', name:'Vanguard Strike', sys:'Burst', blurb:'3-blade rubber rush attacker', patch:{
     system:'Burst', blade:{diameter:48,shape:'blade',wings:3,wingWidth:0.68,depth:0.4,sweep:18,slope:10,height:12,tipHeight:5,color:'#1f8bff'},
     lock:{teeth:3,strength:2}, disc:{shape:'wing',lobes:3,diameter:34,thickness:4,rim:0.2}, bit:{tip:'rubber',tipMaterial:'TPU',tipColor:'#16171f',color:'#ffd21f'}, deco:{emblem:'bolt',accent:'#ffd21f'}, weights:{insert:'bb6',count:3,radius:18,part:'layer'}}},
   {id:'eclipse', name:'Lotus Eclipse', sys:'Burst', blurb:'full-ring stamina, orb tip', patch:{

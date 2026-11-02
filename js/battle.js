@@ -14,7 +14,8 @@ BF.fighter = function(d, name){
     fric:M*9.81*BF.tipFriction(tip),
     drag:3e-12*(1+6*an.rough)*Math.pow(BF.mainPart(asm).meta.R/23,5),
     atk:an.stats.attack, def:an.stats.defense, sta:an.stats.stamina, brs:an.stats.burst, stb:an.stats.stability,
-    spinSign: d.spin==='left'?1:-1, els: BF.elementsOf?BF.elementsOf(d):[] };
+    spinSign: d.spin==='left'?1:-1, els: BF.elementsOf?BF.elementsOf(d):[],
+    g: BF.gimmicksOf?BF.gimmicksOf(d):{} };
 };
 
 // giant raid / tower bosses: bigger, heavier, longer-spinning
@@ -24,16 +25,22 @@ BF.bossFighter = function(d,name,scale){ const f=BF.fighter(d,name), s=scale||1.
 // ---------- deterministic-ish RNG so host sims are reproducible ----------
 function rng(seed){ let s=seed>>>0||1; return ()=>{ s^=s<<13; s^=s>>>17; s^=s<<5; return (s>>>0)/4294967296; }; }
 
+const gg2=f=>f.g||{};
 BF.STADIUMS = {
   X:     {kind:'X', label:'Xtreme Stadium', diameter:380, depth:0.085, rail:0.86,
           zones:[{a:0.25,w:0.5,type:'over'},{a:2.35,w:0.5,type:'over'},{a:4.45,w:0.9,type:'xtreme'}]},
   Burst: {kind:'Burst', label:'Burst Standard', diameter:360, depth:0.11, rail:0,
-          zones:[{a:0.3,w:0.55,type:'over'},{a:2.394,w:0.55,type:'over'},{a:4.489,w:0.55,type:'over'}]}
+          zones:[{a:0.3,w:0.55,type:'over'},{a:2.394,w:0.55,type:'over'},{a:4.489,w:0.55,type:'over'}]},
+  BurstAttack: {kind:'BurstAttack', label:'Burst Attack Stadium', system:'Burst', diameter:340, depth:0.07, rail:0,
+          zones:[{a:0.0,w:0.85,type:'over'},{a:2.094,w:0.85,type:'over'},{a:4.189,w:0.85,type:'over'}]},
+  BurstTornado: {kind:'BurstTornado', label:'Burst Tornado Stadium', system:'Burst', diameter:380, depth:0.14, rail:0,
+          zones:[{a:1.2,w:0.4,type:'over'},{a:4.34,w:0.4,type:'over'}]}
 };
 BF.RULES = {
   X:     {target:4, pts:{spin:1, over:2, burst:2, xtreme:3}},
   Burst: {target:3, pts:{spin:1, over:1, burst:2, xtreme:2}}
 };
+BF.RULES.BurstAttack=BF.RULES.Burst; BF.RULES.BurstTornado=BF.RULES.Burst;
 
 // ---------- simulation ----------
 function tipFor(f,l){
@@ -82,7 +89,7 @@ BF.Sim = class {
       const els=f.els||[], home=this.terrain!=='none'&&els.some(e=>BF.TERRAINS[this.terrain].els.includes(e));
       const b={i,team:this.team[i],x,y,vx:sp*Math.cos(inward),vy:sp*Math.sin(inward), w, w0:w,
         sign, ang:this.rand()*TAU, ph:this.rand()*TAU, phr:0.85+0.3*this.rand(), dmg:0, tilt:shot==='power'?0.3:0, alive:true, out:false, burst:false,
-        dash:0, dashCd:0, hitCd:0, z:0, shot, fx:{}, st:{}, next:{}, moveT:0, moveEl:null, leanT:0, leanCd:0, zigT:0, home,
+        dash:0, dashCd:0, hitCd:0, z:0, shot, bmode:l.bmode||'attack', fx:{}, st:{}, next:{}, moveT:0, moveEl:null, leanT:0, leanCd:0, zigT:0, home,
         moves:(this.movesOn&&l.moves)?l.moves.slice(0,3):[], used:[false,false,false], perks, ...tipFor(f,l)};
       if(shot==='sliding') b.fx.slide=4;
       return b;
@@ -159,9 +166,10 @@ BF.Sim = class {
       let damp=0.85+1.0*(1-mob)+1.5*b.tilt+(S.freeze?2.2:0)+(fx.center?3:0)+(fx.wall?0.8:0);
       if(TR==='ice') damp*=0.45;
       b.vx+=ax*dt; b.vy+=ay*dt; b.vx*=1-Math.min(0.5,damp*dt); b.vy*=1-Math.min(0.5,damp*dt);
+      if(gg2(f).quake&&this.rand()<dt*2.2){ const qa=this.rand()*TAU; b.vx+=Math.cos(qa)*160; b.vy+=Math.sin(qa)*160; }
       b.x+=b.vx*dt; b.y+=b.vy*dt;
       // spin decay from the same physics as the Forge, scaled by the round-length setting
-      let dk=this.decayK; if(fx.eternal) dk*=0.35; if(fx.center) dk*=0.6; if(fx.slide) dk*=0.7; if(S.burn) dk*=1.5;
+      const gg=f.g||{}; let dk=this.decayK*(gg.freetip?0.78:1)*(gg.outerweight?0.92:1)*(gg.imbalance?1.08:1)*(gg.point&&b.shot==='flat'?0.85:1)*(gg.rubbertip?1.12:1); if(fx.eternal) dk*=0.35; if(fx.center) dk*=0.6; if(fx.slide) dk*=0.7; if(S.burn) dk*=1.5;
       const dw=(b.fric+f.drag*b.w*b.w)/f.I*(1+2*b.tilt)*dk;
       b.w=Math.max(0,b.w-dw*dt); b.ang+=b.sign*b.w*dt;
       // terrain hazards
@@ -230,8 +238,10 @@ BF.Sim = class {
     // contact points throw the other Bey: scaled by attacker's attack vs target's defense and mass
     // soft-capped so one tap doesn't fling a Bey out — big hits still can, chip damage adds up
     const kick=(atk,def,mSelf,mOther)=>{ const raw=clash*0.85*Math.pow(0.1+atk/100,2)*(1.3-def/100)*clamp(Math.sqrt(mOther/mSelf),0.55,1.8); return KICK_MAX*(1-Math.exp(-raw/KICK_MAX)); };
-    const outMul=x=>(x.next.kick||1)*(x.fx.weight?1.25:1)*(x.fx.sweep?1.3:1)*(x.home?1.1:1);
-    const inMul=y=>(y.fx.wall?0.4:1)*(y.fx.anchor?0.55:1)*(y.fx.counter?0.6:1)*(y.st.armor?0.75:1);
+    // part gimmicks (real-life inspired): spring blades, imbalance ratchets, free-spin rings/tips, brakes, barrier blades, modes
+    const gA=F[ia].g||{}, gB=F[ib].g||{}, G=x=>x===a?gA:gB;
+    const outMul=x=>(x.next.kick||1)*(x.fx.weight?1.25:1)*(x.fx.sweep?1.3:1)*(x.home?1.1:1)*(G(x).spring?1.15:1)*(G(x).imbalance?1.1:1)*(G(x).bmode?(x.bmode==='defense'?0.85:1.12):1);
+    const inMul=y=>(y.fx.wall?0.4:1)*(y.fx.anchor?0.55:1)*(y.fx.counter?0.6:1)*(y.st.armor?0.75:1)*(G(y).freering?0.85:1)*(G(y).freetip&&!G(y).brakes?1.12:1)*(G(y).brakes?0.85:1)*(G(y).barrier&&y.w>0.6*y.w0?0.8:1)*(G(y).bmode&&y.bmode==='defense'?0.8:1);
     const kOnB=kick(F[ia].atk,F[ib].def,m2,m1)*em[0]*outMul(a)*inMul(b);
     const kOnA=kick(F[ib].atk,F[ia].def,m1,m2)*em[1]*outMul(b)*inMul(a);
     a.vx-=nx*kOnA; a.vy-=ny*kOnA; b.vx+=nx*kOnB; b.vy+=ny*kOnB;
@@ -243,10 +253,13 @@ BF.Sim = class {
     let la=loss(F[ib].atk,F[ia].def)*em[1]*(b.fx.barrage?1.5:1)*(a.fx.wall?0.6:1)*(F[ia].boss?0.9:1);
     let lb=loss(F[ia].atk,F[ib].def)*em[0]*(a.fx.barrage?1.5:1)*(b.fx.wall?0.6:1)*(F[ib].boss?0.9:1);
     if(!same){ const steal=Math.abs(rimA-rimB)*0.0016; if(rimA>rimB){ a.w+=steal*0.5; lb+=steal; } else { b.w+=steal*0.5; la+=steal; } }
+    // spin-steal rubber: meshes with an opposite-spin foe and evens the spin out (like Drain-style layers)
+    if(!same){ if(gA.spinsteal&&a.w<b.w){ const s=Math.min((b.w-a.w)*0.12,b.w0*0.035); a.w=Math.min(a.w0*1.05,a.w+s); lb+=s*0.8; } if(gB.spinsteal&&b.w<a.w){ const s=Math.min((a.w-b.w)*0.12,a.w0*0.035); b.w=Math.min(b.w0*1.05,b.w+s); la+=s*0.8; } }
+    if(gA.freering) la*=0.65; if(gB.freering) lb*=0.65;
     if(a.fx.steal){ const s=0.04*b.w0; lb+=s; a.w=Math.min(a.w0,a.w+s*0.8); }
     if(b.fx.steal){ const s=0.04*a.w0; la+=s; b.w=Math.min(b.w0,b.w+s*0.8); }
     a.w=Math.max(0,a.w-la); b.w=Math.max(0,b.w-lb);
-    a.hitCd=b.hitCd=(a.fx.barrage||b.fx.barrage)?0.05:0.12;
+    a.hitCd=b.hitCd=(a.fx.barrage||b.fx.barrage)?0.05:(gA.barrage||gB.barrage)?0.09:0.12;
     const cx=a.x+nx*F[ia].R, cy=a.y+ny*F[ia].R;
     // "super effective" callouts only for hits made while a move is active
     const mv=[a.moveT>0?em[0]:1, b.moveT>0?em[1]:1];
@@ -255,7 +268,7 @@ BF.Sim = class {
     this.heat=0;
     [[b,ib,a,ia,0],[a,ia,b,ib,1]].forEach(([y,iy,x,ix,k])=>{
       const f=F[iy], weak=1-y.w/y.w0, before=y.dmg;
-      const mul=em[k]*(x.next.upper?2.5:1)*(y.fx.wall?0.4:1)*(y.fx.lockguard?0.25:1)*(y.st.break?1.6:1)*(y.st.armor?0.75:1)*(f.boss?0.6:1);
+      const gy=F[iy].g||{}, gx=F[ix].g||{}; const mul=em[k]*(x.next.upper&&!gy.metalball?2.5:1)*(gy.metalball?0.7:1)*(gy.compress?0.8:1)*(gx.rubberblade?1.15:1)*(gy.burstlock?0.75:1)*(y.fx.wall?0.4:1)*(y.fx.lockguard?0.25:1)*(y.st.break?1.6:1)*(y.st.armor?0.75:1)*(f.boss?0.6:1);
       y.dmg+=clash/BURST_K*(0.35+F[ix].atk/100)*Math.max(0.12,1.12-f.brs/100)*(0.55+weak)*(0.7+0.6*this.rand())*mul;
       if(Math.floor(y.dmg*3)>Math.floor(before*3) && y.dmg<1) this.events.push({k:'click',i:iy,x:y.x,y:y.y,n:Math.floor(y.dmg*3)});
       if(y.alive && y.dmg>=1){ y.alive=false; y.burst=true; this.events.push({k:'burst',i:iy}); }

@@ -90,14 +90,14 @@ const B = BF.BattleUI = {
       ${!online&&!String(this.picks.p1).startsWith('deck:')?'<div class="fine">Practice Beys don’t earn part XP or drops — use a ⚔ Battle Bey for that.</div>':''}
       ${online?'':`<label class="fl">${this.mode==='cpu'?'CPU opponent':'Player 2'}${sel('pick2',this.picks.p2)}</label>`}
       ${this.mode==='cpu'?`<div class="fl">CPU difficulty<div class="seg" id="cpuSeg">${Object.entries(BF.CPU_LEVELS).map(([k,l])=>`<button type="button" class="${(this.cpuLv())===k?'on':''}" data-cpu="${k}">${l}</button>`).join('')}</div></div>`:''}
-      ${hostCtl?`<div class="fl">Stadium<div class="seg" id="stSeg">${[['X','Xtreme'],['Burst','Burst']].map(([k,l])=>`<button type="button" class="${this.stadiumKind===k?'on':''}" data-st="${k}">${l}</button>`).join('')}</div></div>
+      ${hostCtl?`<div class="fl">Stadium<div class="seg" id="stSeg">${[['X','Xtreme'],['Burst','Burst'],['BurstAttack','Burst Attack'],['BurstTornado','Burst Tornado']].map(([k,l])=>`<button type="button" class="${this.stadiumKind===k?'on':''}" data-st="${k}">${l}</button>`).join('')}</div></div>
       <label class="fl">Stadium size <output id="sizeOut" class="val">${this.size} mm</output><input type="range" id="sizeIn" min="280" max="480" step="10" value="${this.size}"></label>
       <div class="fine">${this.rulesLine()} · ${BF.ROUND_LENGTH[BF.Settings.get('roundLength')].label.toLowerCase()} rounds — change in Settings</div>`:''}
       ${onlineHtml}
       ${online?'':`<button class="btn primary wide big" id="fightBtn">Let it rip</button>`}
       ${this.recordLine()}`;
     this.panel.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{ this.mode=b.dataset.mode; if(this.mode!=='online') BF.Net.close(); this.renderSetup(); });
-    this.panel.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{ this.stadiumKind=b.dataset.st; this.size=b.dataset.st==='X'?380:360; this.renderSetup(); });
+    this.panel.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{ this.stadiumKind=b.dataset.st; this.size=(BF.STADIUMS[b.dataset.st]||{}).diameter||360; this.renderSetup(); });
     const si=$('#sizeIn'); if(si) si.oninput=()=>{ this.size=+si.value; $('#sizeOut').textContent=this.size+' mm'; };
     const p1=$('#pick1'); if(p1) p1.onchange=()=>{ this.picks.p1=p1.value; if(online && net.status==='connected') BF.Net.send({t:'hello',design:this.myDesign(),name:this.myName()}); this.renderSetup(); };
     this.panel.querySelectorAll('[data-cpu]').forEach(b=>b.onclick=()=>{ BF.Settings.set('cpuLevel',b.dataset.cpu); this.panel.querySelectorAll('[data-cpu]').forEach(x=>x.classList.toggle('on',x===b)); });
@@ -194,7 +194,8 @@ const B = BF.BattleUI = {
     this.panel.innerHTML=`
       <div class="lp-head"><span class="${col}">${esc(label)}</span><b>${esc(f.name)}</b><span class="dim">Round ${this.round}</span></div>
       ${dual?`<div class="fl">Spin<div class="seg" id="spinSeg"><button type="button" class="on" data-sp="right">Right</button><button type="button" data-sp="left">Left</button></div></div>`:''}
-      ${f.d.bit.tip==='mode'?`<div class="fl">Tip mode<div class="seg" id="modeSegL"><button type="button" class="${f.d.bit.mode!=='stamina'?'on':''}" data-md="attack">Attack</button><button type="button" class="${f.d.bit.mode==='stamina'?'on':''}" data-md="stamina">Stamina</button></div></div>`:''}
+      ${(f.g&&f.g.bmode)?`<div class="fl">Blade mode<div class="seg" id="bmodeSeg"><button type="button" class="on" data-bm="attack">Attack</button><button type="button" data-bm="defense">Defense</button></div></div>`:''}
+      ${(BF.TIPS[f.d.bit.tip]||{}).modes?`<div class="fl">Tip mode<div class="seg" id="modeSegL"><button type="button" class="${f.d.bit.mode!=='stamina'?'on':''}" data-md="attack">Attack</button><button type="button" class="${f.d.bit.mode==='stamina'?'on':''}" data-md="stamina">Stamina</button></div></div>`:''}
       <div class="lp-grid">
         <div class="fl">Aim — tap where you launch from<svg class="aimpad" id="aimPad" viewBox="-60 -60 120 120"><circle r="56" class="ap-st"/><path class="ap-half" d="${who===0?'M -56 0 A 56 56 0 0 0 56 0 Z':'M -56 0 A 56 56 0 0 1 56 0 Z'}"/><circle r="20" class="ap-ring"/><circle id="aimDot" r="6" class="ap-dot ${col}" cx="0" cy="${who===0?31:-31}"/></svg></div>
         <div class="lp-side">
@@ -216,6 +217,7 @@ const B = BF.BattleUI = {
       const wy=-py, base=who===0?-Math.PI/2:Math.PI/2; let off=Math.atan2(wy,px)-base; off=Math.atan2(Math.sin(off),Math.cos(off));
       pos={a:Math.max(-1,Math.min(1,off/0.9)), r:Math.max(0.25,Math.min(0.8,Math.hypot(px,py)/56))}; };
     let mode=f.d.bit.mode||'attack'; this.panel.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{ mode=b.dataset.md; this.panel.querySelectorAll('[data-md]').forEach(x=>x.classList.toggle('on',x===b)); });
+    let bmode='attack'; this.panel.querySelectorAll('[data-bm]').forEach(b=>b.onclick=()=>{ bmode=b.dataset.bm; this.panel.querySelectorAll('[data-bm]').forEach(x=>x.classList.toggle('on',x===b)); });
     let spin='right'; this.panel.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ spin=b.dataset.sp; this.panel.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); });
     const ai=$('#angIn'); ai.oninput=()=>$('#angOut').textContent=(ai.value>0?'+':'')+ai.value+'°';
     const btn=$('#revBtn'), fill=$('#meterFill'); let t0=0, raf=0, power=0;
@@ -224,7 +226,7 @@ const B = BF.BattleUI = {
     const start=e=>{ e.preventDefault(); if(t0) return; t0=performance.now(); btn.classList.add('revving'); tick(); BF.Sfx && BF.Sfx.rev(true); };
     const end=e=>{ if(!t0) return; e&&e.preventDefault(); cancelAnimationFrame(raf); BF.Sfx && BF.Sfx.rev(false);
       const p=Math.max(0.35,power); btn.disabled=true; const P2=p>sweet?1:p; fill.parentNode.classList.add('snap'); if(L()) L().userData.pull=1.6; btn.textContent=p>sweet?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
-      this.lockLaunch(who,{power:P2,angle:+ai.value,spin,mode,shot,pos,moves:picks.slice(),perks}); };
+      this.lockLaunch(who,{power:P2,angle:+ai.value,spin,mode,bmode,shot,pos,moves:picks.slice(),perks}); };
     btn.addEventListener('pointerdown',start); btn.addEventListener('pointerup',end); btn.addEventListener('pointerleave',end);
     btn.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') start(e); }); btn.addEventListener('keyup',e=>{ if(e.key===' '||e.key==='Enter') end(e); });
   },

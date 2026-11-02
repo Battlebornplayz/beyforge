@@ -1,5 +1,19 @@
 # BeyForge update log
 
+## V6.7 — Real Parts
+- **158 named parts** inspired by real Beyblade X and Burst parts, all with BeyForge's own names. Packs now drop these instead of random shapes.
+- **Burst for real:**
+  - Every Burst layer generation is built in 3D with its real extra pieces: Single, Dual, God, Cho-Z, GT, Sparking (chassis), DB (armor + metal core) and BU.
+  - Disc frames.
+- **Real gimmicks in battle:**
+  - Left spin and dual spin.
+  - Free-spin rings, spin-steal rubber, a metal ball core and spring blades.
+  - Attack/defense mode change, free-spinning tips, brake tabs, shock springs and quake gears.
+- **New bits and drivers:** around 30, including Vortex, Tremor, Loose Ball, Nucleus, Coaster, Spindle, Overdrive and Shed.
+- **New packs:** Burst Booster, X Booster and Burst Legend Crate.
+- **New stadiums:** Burst Attack and Burst Tornado, both with official Burst scoring.
+- Renamed parts that were too close to real product names.
+
 ## V6.6 — The Hook
 - **Instant first battle:** new players pick a starter Bey, fight right away, then rip open a free starter pack before being asked to sign up.
 - **Free pack timer:** a free pack every 12 hours, saving up to 2. Hourglasses skip the wait. On Android, your phone pings you when a pack is ready.

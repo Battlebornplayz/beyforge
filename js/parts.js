@@ -35,7 +35,8 @@ const roll=odds=>{ let r=Math.random(), last='common'; for(const [k,p] of Object
 const SLOTS=['blade','core','driver'];
 BF.PART_SLOTS=SLOTS;
 function extract(d,slot){
-  d=BF.clone(d); const P=d.paint||{};
+  d=BF.clone(d); const P=d.paint||{}; const out=extract0(d,slot,P); out.gim=(d.gim&&d.gim[slot])||[]; return out; }
+function extract0(d,slot,P){
   if(slot==='blade') return {system:d.system, spin:d.spin, blade:d.blade, deco:d.deco, chip:d.chip, lock:d.lock, layer:d.layer, element:null,
     weights:d.weights.part==='layer'||d.system==='X'?d.weights:null, paint:{blade:P.blade,accent:P.accent,chip:P.chip,horn:P.horn,metal:P.metal,armor:P.armor}};
   if(slot==='core') return d.system==='X' ? {system:'X', ratchet:d.ratchet, paint:{ratchet:P.ratchet}}
@@ -54,6 +55,7 @@ function assemble(copies,name){
   if(B.data.weights) d.weights=B.data.weights;
   if(d.system==='X') d.ratchet=C.data.ratchet; else { d.disc=C.data.disc; if(C.data.weights) d.weights=C.data.weights; }
   d.bit=D.data.bit;
+  d.gim={blade:B.data.gim||[],core:C.data.gim||[],driver:D.data.gim||[]};
   d.paint=Object.assign(d.paint,B.data.paint,C.data.paint,D.data.paint);
   d=BF.normalize(d); BF.syncColors(d);
   if(name){ d.nameMode='manual'; d.name=name; }
