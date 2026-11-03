@@ -1,5 +1,21 @@
 # BeyForge update log
 
+## V7.0 — Battle Feel
+- **Hits finally hit:** freeze frames, slow-mo, sparks, shockwaves, screen shake and heavy metal sounds that scale with how hard the hit is.
+- **New launch screen:** the stadium stays in view. Tap it to choose your landing spot and see the predicted path, plus how your shot changes speed and spin.
+- **Real ripcord:** drag and yank. Fast and straight is strongest, and a really bad pull can misfire.
+- **Better Bey behavior:**
+  - Beys wobble harder as they lose spin, then topple over.
+  - Knockouts send them flying out of the stadium.
+  - Rail rides light up.
+  - Bursts send parts flying.
+  - Opposite spins visibly steal spin.
+- **4 battle cameras:** Action (new default), Broadcast, Follow and Overhead, in Settings.
+- **A bigger arena:** a huge stage and stands around the stadium.
+- **Practice arena:** test your builds on a dummy with floating damage numbers and live stats.
+- **New Battle Bey builder:** pick a goal and your parts get ranked for it, or tap Auto-build for your best Bey.
+- **BeyForge Studio:** new sliders for hit freeze, slow-mo, zoom, shake, sparks, ripcord forgiveness, battle speed and knockback.
+
 ## V6.8.1 — Pack fix
 - **Fixed packs failing for signed-in players:** many packs and part drops stopped with an "invalid data" error instead of giving you your parts.
 - **Failed packs can't cost you anymore:** if a pack ever fails to open, your coins are refunded and your free pack timer isn't used up.

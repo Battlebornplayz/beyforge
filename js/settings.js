@@ -7,7 +7,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const DEFAULTS = {
   mode:'easy', preview:'paint', printChecks:true, autoSpin:true,
   roundLength:'normal', roundCustom:1, format:'official', customTarget:5, customPoints:'official',
-  cosmetics:true, bloom:true, trails:true, particles:true, shake:true, quality:'high', shadows:true,
+  cosmetics:true, bloom:true, trails:true, particles:true, shake:true, impactFx:true, camera:'action', quality:'high', shadows:true,
   sound:true, volume:0.6, uiSounds:true, theme:'hybrid', accent:'hybrid', textSize:'m', density:'balanced', reduceMotion:false, colorblind:false, highContrast:false, idleFx:true, moves:true, cpuLevel:'normal',
   tour:true, filament:[
     {name:'Black PLA', color:'#16171f', material:'PLA'}, {name:'White PLA', color:'#f2f4f8', material:'PLA'},
@@ -83,6 +83,8 @@ BF.Settings = {
         ${tog('bloom','HD glow (bloom)','Neon glow and smoother edges. Turn off on slow phones.')}
         ${tog('particles','Sparks & particles')}
         ${tog('shake','Screen shake on big hits')}
+        ${tog('impactFx','Hit freeze and slow-mo','The split-second freeze on big hits, and slow-mo on the hardest ones.')}
+        ${sel('camera','Battle camera',{action:'Action: follows the fight',broadcast:'Broadcast: sweeping angles',follow:'Follow: behind your Bey',overhead:'Overhead: the whole stadium'})}
         ${tog('shadows','Shadows')}
         ${sel('quality','Graphics quality',{high:'High',medium:'Medium',low:'Low (older phones)'})}
       </section>

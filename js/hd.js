@@ -70,7 +70,7 @@ BF.buildStadium = function(kind, diameter){
   const wallG=new T.CylinderGeometry(R+1,R+1,30,seg,1,true); wallG.rotateX(Math.PI/2); wallG.translate(0,0,wallZ+14);
   const wall=new T.Mesh(wallG,new T.MeshPhysicalMaterial({color:0x2a2460,roughness:0.15,metalness:0,transparent:true,opacity:0.35,clearcoat:1,side:T.DoubleSide,depthWrite:false})); g.add(wall);
   const shellG=new T.CylinderGeometry(R+9,R+12,wallZ+36,seg,1,true); shellG.rotateX(Math.PI/2); shellG.translate(0,0,(wallZ+36)/2-6);
-  g.add(new T.Mesh(shellG,new T.MeshStandardMaterial({color:0x0f0c22,roughness:0.55,metalness:0.3,side:T.DoubleSide})));
+  g.add(new T.Mesh(shellG,new T.MeshStandardMaterial({color:0x0a0817,roughness:0.85,metalness:0,envMapIntensity:0.1,side:T.DoubleSide})));
   // top lip with neon strip
   const lip=new T.Mesh(new T.TorusGeometry(R+5,4,16,seg),new T.MeshStandardMaterial({color:0x1a1638,roughness:0.35,metalness:0.6})); lip.position.z=wallZ+30; g.add(lip);
   const strip=new T.Mesh(new T.TorusGeometry(R+5,1.1,8,seg),neon(kind==='X'?0x2ef2ff:0xff2e88,2.4)); strip.position.z=wallZ+33; g.add(strip);
@@ -104,7 +104,7 @@ BF.buildStadium = function(kind, diameter){
     const am=zn.a+zn.w/2; lbl.position.set(R*0.82*Math.cos(am),R*0.82*Math.sin(am),zAt(R*0.82)+0.5); lbl.rotation.z=am-Math.PI/2; g.add(lbl);
   });
   // arena surroundings: table, glow underlay, overhead spots
-  const table=new T.Mesh(new T.CircleGeometry(R*4,96),new T.MeshStandardMaterial({color:0x07060e,roughness:0.85,metalness:0.1})); table.position.z=-6.1; table.receiveShadow=true; g.add(table);
+  const table=new T.Mesh(new T.CircleGeometry(R*4,96),new T.MeshBasicMaterial({color:0x06050d})); table.position.z=-6.1; g.add(table);
   const under=new T.Mesh(new T.PlaneGeometry((R+70)*2,(R+70)*2),new T.MeshBasicMaterial({map:glowRing(R/(R+70)),color:kind==='X'?0x2ef2ff:0xff2e88,transparent:true,opacity:0.14,depthWrite:false,blending:T.AdditiveBlending})); under.position.z=-6; g.add(under);
   if(hi){ const sp=new T.SpotLight(0xffffff,0.5,R*6,0.42,0.7,1); sp.position.set(0,-R*0.4,R*3.2); sp.target.position.set(0,0,0); g.add(sp); g.add(sp.target); }
   g.userData={R, depth, zAt};
@@ -113,6 +113,25 @@ BF.buildStadium = function(kind, diameter){
 function glowRing(inner){ const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d'); const gr=x.createRadialGradient(128,128,0,128,128,128);
   gr.addColorStop(0,'rgba(255,255,255,0)'); gr.addColorStop(Math.max(0,inner-0.02),'rgba(255,255,255,0)'); gr.addColorStop(inner+0.03,'rgba(255,255,255,0.8)'); gr.addColorStop(Math.min(1,inner+0.25),'rgba(255,255,255,0)');
   x.fillStyle=gr; x.fillRect(0,0,256,256); return new T.CanvasTexture(c); }
+
+// ---------- the arena around the stadium, so a match feels like a huge show (physics size is unchanged) ----------
+BF.buildRoom=function(R,hi){
+  const g=new T.Group(), anims=[], add=o=>Object.assign(o,{transparent:true,blending:T.AdditiveBlending,depthWrite:false});
+  // floor rings around the stage
+  [1.45,2.3,3.3].forEach((k,i)=>{ const m=new T.Mesh(new T.RingGeometry(R*k,R*k+(i===0?5:2.5),128),new T.MeshBasicMaterial(add({color:i%2?0xffe600:0x2ef2ff,opacity:0.2}))); m.position.z=-5.8; g.add(m); });
+  // stands: stepped tiers with thousands of tiny lights
+  const c=document.createElement('canvas'); c.width=hi?2048:1024; c.height=hi?256:128; const x=c.getContext('2d'); x.fillStyle='#050409'; x.fillRect(0,0,c.width,c.height);
+  const cols=['#2ef2ff','#ffe600','#ff2e88','#ffffff','#a07bff']; for(let i=0;i<(hi?5200:2200);i++){ x.fillStyle=cols[Math.floor(Math.random()*Math.random()*5)]; x.globalAlpha=0.12+Math.random()*0.75; const s=Math.random()<0.1?2.2:1.2; x.fillRect(Math.random()*c.width,Math.random()*c.height,s,s); } x.globalAlpha=1;
+  const tex=new T.CanvasTexture(c); tex.wrapS=T.RepeatWrapping; tex.repeat.set(5,1); tex.encoding=T.sRGBEncoding;
+  const prof=[], n=7, r0=R*4.1, rs=R*0.86, hs=R*0.42; prof.push(new T.Vector2(r0,-6)); for(let k=0;k<n;k++){ const r=r0+k*rs, z=k*hs+R*0.12; prof.push(new T.Vector2(r,z)); prof.push(new T.Vector2(r+rs,z+hs*0.2)); } prof.push(new T.Vector2(r0+n*rs,n*hs+R*0.9));
+  const standG=new T.LatheGeometry(prof,hi?128:72); standG.rotateX(Math.PI/2); const stand=new T.Mesh(standG,new T.MeshBasicMaterial({map:tex,side:T.DoubleSide})); g.add(stand);
+  // LED strips along the tiers
+  const strips=[]; for(let k=0;k<n;k+=2){ const m=new T.Mesh(new T.TorusGeometry(r0+k*rs,1.8+k*0.2,6,hi?128:64),new T.MeshBasicMaterial({color:k%4?0xffe600:0x2ef2ff,transparent:true,opacity:0.8})); m.position.z=k*hs+R*0.12; g.add(m); strips.push(m); }
+  let pulse=0;
+  g.userData.pulse=()=>{ pulse=1; };
+  g.userData.tick=(t,dt)=>{ pulse*=Math.pow(0.02,dt); strips.forEach((m,i)=>{ m.material.opacity=Math.min(1,0.55+0.25*Math.sin(t*1.4+i)+pulse*0.45); }); };
+  return g;
+};
 
 // ---------- HD Forge floor ----------
 BF.forgeFloorTexture=function(){ const t=floorTexture('X',2048); return t; };

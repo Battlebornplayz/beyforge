@@ -58,6 +58,7 @@ const B = BF.BattleUI = {
   myName(){ const d=this.myDesign(); return BF.naming(d).full; },
   // ---------- setup screen ----------
   async renderSetup(){
+    { const ph=$('#pracHud'); if(ph) ph.hidden=true; this._aim=null; if(this.arena) this.arena.liftY=0; }
     this.st='setup'; document.body.classList.remove('infight'); this.hud(false); $('#banner').hidden=true; this.match=null;
     if(this.mode==='adventure'){ this.panel.className='bpanel setup adv'; BF.Adventure.panel(this.panel,this); this.previewArena(); return; }
     const opts=await this.options();
@@ -85,10 +86,10 @@ const B = BF.BattleUI = {
     this.panel.className='bpanel setup';
     this.panel.innerHTML=`
       <h2>Battle</h2>
-      <div class="seg" id="modeSeg">${[['cpu','vs CPU'],['adventure','Adventure'],['local','2 players'],['online','Online']].map(([k,l])=>`<button type="button" class="${this.mode===k?'on':''}" data-mode="${k}">${l}</button>`).join('')}</div>
+      <div class="seg" id="modeSeg">${[['cpu','vs CPU'],['practice','Practice'],['adventure','Adventure'],['local','2 players'],['online','Online']].map(([k,l])=>`<button type="button" class="${this.mode===k?'on':''}" data-mode="${k}">${l}</button>`).join('')}</div>
       ${online&&!opts.length?`<div class="netbox"><b>Online needs a Battle Bey</b><span class="dim">Battle Beys are built from parts you own. Grab your free starter in the Parts tab.</span><button class="btn primary" id="toParts">Open Parts</button></div>`:`<label class="fl">${online?'Your Bey':'Player 1'}${sel('pick1',this.picks.p1)}</label>`}
       ${!online&&!String(this.picks.p1).startsWith('deck:')?'<div class="fine">Practice Beys don’t earn part XP or drops — use a ⚔ Battle Bey for that.</div>':''}
-      ${online?'':`<label class="fl">${this.mode==='cpu'?'CPU opponent':'Player 2'}${sel('pick2',this.picks.p2)}</label>`}
+      ${online||this.mode==='practice'?'':`<label class="fl">${this.mode==='cpu'?'CPU opponent':'Player 2'}${sel('pick2',this.picks.p2)}</label>`}
       ${this.mode==='cpu'?`<div class="fl">CPU difficulty<div class="seg" id="cpuSeg">${Object.entries(BF.CPU_LEVELS).map(([k,l])=>`<button type="button" class="${(this.cpuLv())===k?'on':''}" data-cpu="${k}">${l}</button>`).join('')}</div></div>`:''}
       ${hostCtl?`<div class="fl">Stadium<div class="seg" id="stSeg">${[['X','Xtreme'],['Burst','Burst'],['BurstAttack','Burst Attack'],['BurstTornado','Burst Tornado']].map(([k,l])=>`<button type="button" class="${this.stadiumKind===k?'on':''}" data-st="${k}">${l}</button>`).join('')}</div></div>
       <label class="fl">Stadium size <output id="sizeOut" class="val">${this.size} mm</output><input type="range" id="sizeIn" min="280" max="480" step="10" value="${this.size}"></label>
@@ -133,6 +134,7 @@ const B = BF.BattleUI = {
   // ---------- match flow ----------
   cpuLv(){ return (this.match&&this.match.cpuLevel)||BF.Settings.get('cpuLevel')||'normal'; },
   localStart(){
+    if(this.mode==='practice'){ const d=this.designFor(this.picks.p1); return this.practiceStart(d,null,Object.assign({},BF.STADIUMS[d.system]||BF.STADIUMS.X,this.stadium())); }
     const d1=this.designFor(this.picks.p1), d2=this.designFor(this.picks.p2);
     const st=this.stadium(); this.startMatch({stadium:st, rules:BF.Settings.rulesFor(st.kind), moves:BF.Settings.get('moves')!==false, prog:true, d1, d2, n1:null, n2:null, seed:(Math.random()*1e9)|0});
   },
@@ -153,11 +155,11 @@ const B = BF.BattleUI = {
     this.F=[m.tut?BF.bossFighter(m.d1,m.n1,(BF.Econ&&BF.Econ.get('onboarding').starterBoost)||1.15):BF.fighter(m.d1,m.n1), m.boss2?BF.bossFighter(m.d2,m.n2,m.bossScale||1.2):BF.fighter(m.d2,m.n2)];
     if(this.raid) this.F.push(BF.bossFighter(m.d3,m.n3,m.bossScale||1.45));
     this.me = this.mode==='online' && BF.Net.role==='guest' ? 1 : 0;
-    this.arena.setup(m.stadium,...this.F); this.arena.intro();
+    this.arena.meIdx=this.me; this.hitStop=0; this.slowT=0; this.arena.setup(m.stadium,...this.F); this.arena.intro();
     $('#bossHud').hidden=!this.raid; if(this.raid){ $('#bossName').textContent=this.F[2].name; }
     this.rules=m.rules||BF.Settings.rulesFor(m.stadium.kind);
     this.mst=this.F.map(()=>({moves:0,statuses:0,clicks:0,rounds:0,fin:{}})); this.mstAll={hits:0,best:0,longest:0,rounds:0};
-    this.hud(true);
+    this.hud(true); setTimeout(()=>this.pracHud(),0);
     if(!document.documentElement.classList.contains('reduce-motion')) this.vsSplash(()=>this.nextRound()); else this.nextRound();
   },
   portrait(f){ const key=f.name+(f.d.paint&&f.d.paint.blade.color); this._pc=this._pc||{}; if(this._pc[key]) return this._pc[key];
@@ -184,62 +186,75 @@ const B = BF.BattleUI = {
     else this.launchPanel(0);
   },
   idlePose(){ const R=this.match.stadium.diameter/2; this.netSnap={b:[[0,-R*0.55,0,0,0,1,0,1,0,0],[0,R*0.55,0,0,0,1,0,1,0,0]].concat(this.raid?[[R*0.3,0,0,0,0,1,0,1,0,0]]:[]).map((s,i)=>{ s[2]=this.match.stadium.depth*(R*0.55)**2/R; return s; })}; },
+  // ---------- launch: the stadium stays in view, tap it to aim, shot on the side, ripcord along the bottom ----------
   launchPanel(who){
-    const f=this.F[who], col=who===0?'c1':'c2', dual=f.d.spin==='dual';
-    if(!document.documentElement.classList.contains('reduce-motion')) setTimeout(()=>{ const R=this.match.stadium.diameter/2, y=who===0?-R*0.55:R*0.55; this.arena.launchView(who,{x:0,y,z:this.match.stadium.depth*(R*0.55)**2/R}); },80);
-    const label=this.mode==='local'?`Player ${who+1}`:this.mode==='cpu'?'Your launch':'Your launch';
+    const f=this.F[who], col=who===0?'c1':'c2', dual=f.d.spin==='dual', foe=this.F[who===0?1:0]||this.F[0], st=this.match.stadium, R=st.diameter/2, ar=this.arena;
+    const label=this.mode==='local'?`Player ${who+1}`:'Your launch';
     const perks=(this.progOn&&(this.mode!=='local'||who===0)&&BF.Parts)?BF.Parts.blader().filter(k=>['steady','grit','quick','focus'].includes(k)):[];
-    const sweet=perks.includes('steady')?0.84:0.9;
-    this.panel.className='bpanel launch';
+    const perfectAt=perks.includes('steady')?0.84:0.92;
+    this.idlePose(); ar.camFx=null; { const nar=window.innerWidth<=1000, asp=ar.camera.aspect; ar.liftY=nar?R*(asp<1?0.62:0.62):0; ar.liftK=nar&&asp>=0.8?1.5:1; }   // on phones, slide the stadium up above the controls. Also hides the other player's aim on shared screens
+    if(this.match.practice&&this.practice.kind==='still'&&this.netSnap.b[1]){ const s=this.netSnap.b[1]; s[0]=0; s[1]=0; s[2]=0; }
+    this.panel.className='bpanel launch la';
     this.panel.innerHTML=`
-      <div class="lp-head"><span class="${col}">${esc(label)}</span><b>${esc(f.name)}</b><span class="dim">Round ${this.round}</span></div>
-      ${dual?`<div class="fl">Spin<div class="seg" id="spinSeg"><button type="button" class="on" data-sp="right">Right</button><button type="button" data-sp="left">Left</button></div></div>`:''}
-      ${(f.g&&f.g.bmode)?`<div class="fl">Blade mode<div class="seg" id="bmodeSeg"><button type="button" class="on" data-bm="attack">Attack</button><button type="button" data-bm="defense">Defense</button></div></div>`:''}
-      ${(BF.TIPS[f.d.bit.tip]||{}).modes?`<div class="fl">Tip mode<div class="seg" id="modeSegL"><button type="button" class="${f.d.bit.mode!=='stamina'?'on':''}" data-md="attack">Attack</button><button type="button" class="${f.d.bit.mode==='stamina'?'on':''}" data-md="stamina">Stamina</button></div></div>`:''}
-      <div class="lp-grid">
-        <div class="fl">Aim — tap where you launch from<svg class="aimpad" id="aimPad" viewBox="-60 -60 120 120"><circle r="56" class="ap-st"/><path class="ap-half" d="${who===0?'M -56 0 A 56 56 0 0 0 56 0 Z':'M -56 0 A 56 56 0 0 1 56 0 Z'}"/><circle r="20" class="ap-ring"/><circle id="aimDot" r="6" class="ap-dot ${col}" cx="0" cy="${who===0?31:-31}"/></svg></div>
-        <div class="lp-side">
-          <div class="fl">Shot<div class="shotgrid" id="shotSeg">${Object.entries(BF.SHOTS).map(([k,v],j)=>`<button type="button" class="${j===0?'on':''}" data-shot="${k}" title="${esc(v.desc)}"><b>${esc(v.label)}</b><span>${esc(v.desc)}</span></button>`).join('')}</div></div>
-          <label class="fl">Tilt <output class="val" id="angOut">0°</output><input type="range" id="angIn" min="-30" max="30" step="1" value="0"></label>
-        </div>
+      <div class="la-side">
+        <div class="lp-head"><span class="${col}">${esc(label)} · Round ${this.round}</span><b>${esc(f.name)}</b></div>
+        ${dual?`<div class="fl">Spin<div class="seg" id="spinSeg"><button type="button" class="on" data-sp="right">Right</button><button type="button" data-sp="left">Left</button></div></div>`:''}
+        ${(f.g&&f.g.bmode)?`<div class="fl">Blade mode<div class="seg" id="bmodeSeg"><button type="button" class="on" data-bm="attack">Attack</button><button type="button" data-bm="defense">Defense</button></div></div>`:''}
+        ${(BF.TIPS[f.d.bit.tip]||{}).modes?`<div class="fl">Tip mode<div class="seg" id="modeSegL"><button type="button" class="${f.d.bit.mode!=='stamina'?'on':''}" data-md="attack">Attack</button><button type="button" class="${f.d.bit.mode==='stamina'?'on':''}" data-md="stamina">Stamina</button></div></div>`:''}
+        <div class="fl">Shot<div class="la-shots" id="shotSeg">${Object.entries(BF.SHOTS).map(([k,v],j)=>`<button type="button" class="${j===0?'on':''}" data-shot="${k}" title="${esc(v.desc)}">${esc(v.label.split(' ')[0])}</button>`).join('')}</div></div>
+        <div class="la-fx" id="shotFx"></div>
+        <label class="fl">Tilt <output class="val" id="angOut">0°</output><input type="range" id="angIn" min="-30" max="30" step="1" value="0"></label>
+        ${this.movesOn?`<button type="button" class="la-movesbtn" id="movesBtn" aria-expanded="false"><b>Moves</b><span id="movesSum"></span></button>`:''}
       </div>
-      ${this.movesOn?this.movePicker(who):''}
-      <div class="meter ripcord"><i id="meterFill"></i><span class="sweet"></span></div>
-      <button class="btn primary wide big rev" id="revBtn">Hold to rev — release to launch</button>
-      <div class="fine">Release in the bright zone for a full-power launch.</div>`;
-    let shot='flat', pos={a:0,r:0.55}; const picks=this.movesOn?this.defaultPicks(who):[];
-    this.panel.querySelectorAll('[data-shot]').forEach(b=>b.onclick=()=>{ shot=b.dataset.shot; this.panel.querySelectorAll('[data-shot]').forEach(x=>x.classList.toggle('on',x===b)); });
-    this.panel.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{ if(b.disabled) return; const part=+b.dataset.part; picks[part]=b.dataset.mv; this.panel.querySelectorAll(`[data-part="${part}"]`).forEach(x=>x.classList.toggle('on',x===b)); });
-    const pad=$('#aimPad'), dot=$('#aimDot');
-    pad.onpointerdown=e=>{ const r=pad.getBoundingClientRect(); let px=((e.clientX-r.left)/r.width-0.5)*120, py=((e.clientY-r.top)/r.height-0.5)*120;
-      if(who===0) py=Math.max(6,py); else py=Math.min(-6,py); const d=Math.hypot(px,py); if(d>52){ px*=52/d; py*=52/d; }
-      dot.setAttribute('cx',px); dot.setAttribute('cy',py);
-      const wy=-py, base=who===0?-Math.PI/2:Math.PI/2; let off=Math.atan2(wy,px)-base; off=Math.atan2(Math.sin(off),Math.cos(off));
-      pos={a:Math.max(-1,Math.min(1,off/0.9)), r:Math.max(0.25,Math.min(0.8,Math.hypot(px,py)/56))}; };
-    let mode=f.d.bit.mode||'attack'; this.panel.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{ mode=b.dataset.md; this.panel.querySelectorAll('[data-md]').forEach(x=>x.classList.toggle('on',x===b)); });
-    let bmode='attack'; this.panel.querySelectorAll('[data-bm]').forEach(b=>b.onclick=()=>{ bmode=b.dataset.bm; this.panel.querySelectorAll('[data-bm]').forEach(x=>x.classList.toggle('on',x===b)); });
-    let spin='right'; this.panel.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ spin=b.dataset.sp; this.panel.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); });
-    const ai=$('#angIn'); ai.oninput=()=>$('#angOut').textContent=(ai.value>0?'+':'')+ai.value+'°';
-    const btn=$('#revBtn'), fill=$('#meterFill'); let t0=0, raf=0, power=0;
-    const L=()=>this.arena.beys[who]&&this.arena.beys[who].launcher;
-    const tick=()=>{ const t=(performance.now()-t0)/1000; const ph=(t/1.3)%2; power=ph<1?ph:2-ph; fill.style.width=(power*100)+'%'; if(L()) L().userData.pull=power; fill.classList.toggle('hot',power>sweet); raf=requestAnimationFrame(tick); };
-    const start=e=>{ e.preventDefault(); if(t0) return; t0=performance.now(); btn.classList.add('revving'); tick(); BF.Sfx && BF.Sfx.rev(true); };
-    const end=e=>{ if(!t0) return; e&&e.preventDefault(); cancelAnimationFrame(raf); BF.Sfx && BF.Sfx.rev(false);
-      const p=Math.max(0.35,power); btn.disabled=true; const P2=p>sweet?1:p; fill.parentNode.classList.add('snap'); if(L()) L().userData.pull=1.6; btn.textContent=p>sweet?'PERFECT LAUNCH!':`Launch power ${Math.round(p*100)}%`;
-      this.lockLaunch(who,{power:P2,angle:+ai.value,spin,mode,bmode,shot,pos,moves:picks.slice(),perks}); };
-    btn.addEventListener('pointerdown',start); btn.addEventListener('pointerup',end); btn.addEventListener('pointerleave',end);
-    btn.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') start(e); }); btn.addEventListener('keyup',e=>{ if(e.key===' '||e.key==='Enter') end(e); });
+      ${this.movesOn?`<div class="la-moves" id="movesBox" hidden>${this.movePicker(who)}<button type="button" class="btn primary wide" id="movesDone">Done</button></div>`:''}
+      <div class="la-hint" id="laHint">Tap your half of the stadium to choose where you land</div>
+      <div class="la-rip">
+        <div class="la-riptxt"><b>Pull the ripcord</b><span>Fast and straight is strongest</span></div>
+        <div class="la-track" id="ripTrack"><i id="ripCord"></i><button type="button" class="la-handle" id="ripHandle" aria-label="Pull the ripcord. On a keyboard, hold Space or Enter."></button><span>Drag and yank this way</span><em id="ripMsg"></em></div>
+      </div>`;
+    let shot='flat', pos={a:0,r:0.55}, mode=f.d.bit.mode||'attack', bmode='attack', spin='right', tmr=0; const picks=this.movesOn?this.defaultPicks(who):[], Q=s=>this.panel.querySelector(s);
+    const ai=Q('#angIn'), pathOn=()=>!(this.match.practice&&this._noPath);
+    const place=()=>{ const base=who===0?-Math.PI/2:Math.PI/2, a0=base+pos.a*0.9, r=R*pos.r, x=r*Math.cos(a0), y=r*Math.sin(a0), z=st.depth*r*r/R; if(this.netSnap&&this.netSnap.b[who]){ const s=this.netSnap.b[who]; s[0]=x; s[1]=y; s[2]=z; } return {x,y,z}; };
+    const preview=()=>{ clearTimeout(tmr); tmr=setTimeout(()=>{ if(this.st!=='launch') return; try{ ar.setPreview(pathOn()?BF.predictLaunch(f,foe,st,{angle:+ai.value,spin,mode,bmode,shot,pos},who):null,who===0?0xffe600:0xff5aa5); }catch(e){ console.warn('preview',e); } },40); };
+    const showFx=()=>{ const v=BF.SHOTS[shot]; Q('#shotFx').innerHTML=`<div><span>Speed</span><b>${v.speed}</b></div><div><span>Spin</span><b>${v.spin}</b></div><p>${esc(v.extra)}</p>`; };
+    const moveSum=()=>{ const m=Q('#movesSum'); if(m) m.textContent=picks.map(id=>{ const x=BF.moveById(f.d,id); return x?x.name:''; }).filter(Boolean).join(' · '); };
+    const at=place(); setTimeout(()=>{ if(this.st==='launch') ar.launchView(who,at); },60); showFx(); moveSum(); preview();
+    this.panel.querySelectorAll('[data-shot]').forEach(b=>b.onclick=()=>{ shot=b.dataset.shot; this.panel.querySelectorAll('[data-shot]').forEach(x=>x.classList.toggle('on',x===b)); showFx(); preview(); });
+    this.panel.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{ if(b.disabled) return; const part=+b.dataset.part; picks[part]=b.dataset.mv; this.panel.querySelectorAll(`[data-part="${part}"]`).forEach(x=>x.classList.toggle('on',x===b)); moveSum(); });
+    this.panel.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{ mode=b.dataset.md; this.panel.querySelectorAll('[data-md]').forEach(x=>x.classList.toggle('on',x===b)); preview(); });
+    this.panel.querySelectorAll('[data-bm]').forEach(b=>b.onclick=()=>{ bmode=b.dataset.bm; this.panel.querySelectorAll('[data-bm]').forEach(x=>x.classList.toggle('on',x===b)); });
+    this.panel.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ spin=b.dataset.sp; this.panel.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); preview(); });
+    ai.oninput=()=>{ Q('#angOut').textContent=(ai.value>0?'+':'')+ai.value+'°'; preview(); };
+    const mb=Q('#movesBtn'), mx=Q('#movesBox'); if(mb){ const tg=on=>{ mx.hidden=!on; mb.setAttribute('aria-expanded',on); }; mb.onclick=()=>tg(mx.hidden); Q('#movesDone').onclick=()=>tg(false); }
+    // aim: tap or drag on your half of the stadium
+    this._aim=w=>{ const base=who===0?-Math.PI/2:Math.PI/2; let off=Math.atan2(w.y,w.x)-base; off=Math.atan2(Math.sin(off),Math.cos(off)); if(Math.abs(off)>Math.PI/2) off=Math.sign(off)*Math.PI/2; pos={a:Math.max(-1,Math.min(1,off/0.9)),r:Math.max(0.25,Math.min(0.8,Math.hypot(w.x,w.y)/R))}; const p=place(); const v=ar.beys[who]; if(v) v.root.position.set(p.x,p.y,p.z); const h=Q('#laHint'); if(h) h.classList.add('done'); preview(); };
+    // ripcord: speed of the pull sets power, staying straight sets accuracy
+    const track=Q('#ripTrack'), handle=Q('#ripHandle'), cord=Q('#ripCord'), msg=Q('#ripMsg'), L=()=>ar.beys[who]&&ar.beys[who].launcher; const RK=BF.feel('ripEase'); let t0=0, x0=0, y0=0, len=1, dev=0, n=0, pull=0, fired=false;
+    const setPull=p=>{ pull=Math.max(0,Math.min(1,p)); const w=handle.offsetWidth, room=Math.max(1,track.clientWidth-w-8); handle.style.transform=`translateX(${pull*room}px)`; cord.style.width=(pull*room+w/2)+'px'; if(L()) L().userData.pull=pull; };
+    const finish=(dur,straight)=>{ if(fired) return; fired=true; this._aim=null; clearTimeout(tmr); BF.Sfx&&BF.Sfx.rev(false);
+      const power=Math.max(0.5,Math.min(1,1-(dur-0.38*RK)/(1.1*RK)*0.5)), perfect=power>=perfectAt&&straight>=0.6, misfire=!perfect&&(straight<0.18||dur>1.9*RK), P=perfect?1:power;
+      track.classList.add('snap',perfect?'perfect':misfire?'misfire':'ok'); msg.textContent=perfect?'PERFECT LAUNCH!':misfire?'MISFIRE!':`Launch power ${Math.round(P*100)}%`; if(L()) L().userData.pull=1.6; setPull(1);
+      BF.Sfx&&BF.Sfx.ui&&BF.Sfx.ui(perfect?'epic':'click'); ar.clearPreview();
+      setTimeout(()=>this.lockLaunch(who,{power:P,angle:+ai.value,spin,mode,bmode,shot,pos,moves:picks.slice(),perks,misfire:misfire?1:0}),perfect?520:380); };
+    const move=e=>{ if(!t0) return; const dx=e.clientX-x0, dy=e.clientY-y0; dev+=dy*dy; n++; setPull(dx/len); if(pull>=0.985) up(e,true); };
+    const up=(e,full)=>{ if(!t0) return; window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); const dur=(performance.now()-t0)/1000, p=full===true?1:pull; t0=0;
+      if(p<0.35){ setPull(0); BF.Sfx&&BF.Sfx.rev(false); return; }   // a short tug doesn't count
+      const rms=Math.sqrt(dev/Math.max(1,n)), straight=1-Math.min(1,rms/(Math.max(70,len*0.2)*RK)); finish(dur+(1-p)*0.9,straight); };
+    handle.addEventListener('pointerdown',e=>{ if(fired) return; e.preventDefault(); t0=performance.now(); x0=e.clientX; y0=e.clientY; dev=0; n=0; len=Math.max(80,track.clientWidth-handle.offsetWidth-8); BF.Sfx&&BF.Sfx.rev(true); window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); });
+    let kt=0, kr=0; const kstep=()=>{ if(!kt) return; setPull((performance.now()-kt)/500); kr=requestAnimationFrame(kstep); };
+    handle.addEventListener('keydown',e=>{ if((e.key===' '||e.key==='Enter')&&!kt&&!fired){ e.preventDefault(); kt=performance.now(); BF.Sfx&&BF.Sfx.rev(true); kstep(); } });
+    handle.addEventListener('keyup',e=>{ if((e.key===' '||e.key==='Enter')&&kt){ e.preventDefault(); cancelAnimationFrame(kr); const hold=(performance.now()-kt)/1000; kt=0; if(hold<0.2){ setPull(0); BF.Sfx&&BF.Sfx.rev(false); return; } finish(Math.max(0.38,hold),1); } });
   },
   lockLaunch(who,l){
     if(this.mode==='online'){
       if(BF.Net.role==='host'){ this.launches[0]=l; this.tryGo(); }
       else BF.Net.send({t:'launch',l});
-      setTimeout(()=>{ if(this.st==='launch') this.panel.innerHTML=`<div class="netwait">Waiting for ${esc(this.F[1-this.me].name)} to launch…</div>`; },600);
+      setTimeout(()=>{ if(this.st==='launch'){ this.panel.className='bpanel'; this.panel.innerHTML=`<div class="netwait">Waiting for ${esc(this.F[1-this.me].name)} to launch…</div>`; } },600);
       return;
     }
     this.launches[who]=l;
     if(this.mode==='local' && who===0){ setTimeout(()=>this.launchPanel(1),650); return; }
-    if(this.mode==='cpu'){ this.launches[1]=BF.MoveAI.launch(this.F[1],this.F[0],this.cpuLv(),this.lastMoves[1]); if(this.match&&this.match.tut){ this.launches[1].power=Math.min(this.launches[1].power||1,0.55); this.launches[1].moves=[]; } }
+    if(this.mode==='cpu'||(this.match&&this.match.practice)){ this.launches[1]=BF.MoveAI.launch(this.F[1],this.F[0],this.cpuLv(),this.lastMoves[1]); if(this.match&&this.match.tut){ this.launches[1].power=Math.min(this.launches[1].power||1,0.55); this.launches[1].moves=[]; } }
     if(this.raid) this.launches[2]=BF.MoveAI.launch(this.F[2],this.F[0],'expert',this.lastMoves[2]);
     setTimeout(()=>this.countdown(this.launches,(Math.random()*1e9)|0),500);
   },
@@ -257,7 +272,7 @@ const B = BF.BattleUI = {
     this.arena.live=true; this.F.forEach((_,i)=>this.arena.launchFx(i)); this.arena.releaseLaunchers();
     this.showMoveBar(); this._usedSeen=null;
     if(isGuest){ this.sim=null; return; }
-    this.sim=new BF.Sim(this.F[0],this.F[1],this.match.stadium,seed,this.raid?{extra:this.F[2],teams:[0,0,1]}:undefined);
+    this.sim=new BF.Sim(this.F[0],this.F[1],this.match.stadium,seed,this.raid?{extra:this.F[2],teams:[0,0,1]}:this.match.practice?{practice:{still:this.practice.kind==='still',infinite:this.practice.infinite}}:undefined);
     this.sim.movesOn=this.sim.elemOn=this.movesOn; this.aiMem=[{},{},{}]; this.aiAcc=0; this.hitStop=0;
     if(this.match.decayK) this.sim.decayK=this.match.decayK;
     this.sim.launch(...this.launches); this.acc=0; this.sendT=0; this.evQ=[];
@@ -267,24 +282,55 @@ const B = BF.BattleUI = {
     const ar=this.arena;
     if(this.mst){ const M=this.mst, n=this.F.length, foe=i=>this.raid?(i===2?0:2):1-i;
       if(e.k==='hit'){ this.mstAll.hits++; this.mstAll.best=Math.max(this.mstAll.best,e.s); }
-      if(e.k==='move'&&M[e.i]){ M[e.i].moves++; if(BF.Stats&&this.mode!=='local'&&e.i===(this.raid?0:this.me)) BF.Stats.add('moves.'+(e.name||e.id).replace(/ (II|III)$/,'')); }
+      if(e.k==='move'&&M[e.i]){ M[e.i].moves++; if(BF.Stats&&this.mode!=='local'&&!this.match.practice&&e.i===(this.raid?0:this.me)) BF.Stats.add('moves.'+(e.name||e.id).replace(/ (II|III)$/,'')); }
       if(e.k==='click'&&M[foe(e.i)]) M[foe(e.i)].clicks++;
       if(e.k==='status'&&e.s!=='armor'&&M[foe(e.i)]) M[foe(e.i)].statuses++; }
-    if(e.k==='hit' && e.s>1500){ this.hitStop=0.07; ar.shake=Math.min(6,(ar.shake||0)+2.5); this.flash('rgba(255,255,255,.35)'); }
+    if(e.k==='hit'){ this.hitFx(e); if(this.match&&this.match.practice) this.practiceHit(e); }
+    if(e.k==='dash'&&this.match&&this.match.practice&&e.i===0){ this.practice.rails++; const r=$('#prR'); if(r) r.textContent=this.practice.rails; }
+    if(e.k==='over'||e.k==='xtreme'){ const v=ar.beys[e.i], p=v&&v.root.position; if(p){ ar.impact(e.x==null?p.x:e.x,e.y==null?p.y:e.y,p.z,3,e.k==='xtreme'?0xffe600:0xff8a3a); ar.punch(p.x,p.y,p.z,0.34,0.8); } ar.koFx(e.i,e.k,e); this.freeze(0.14,0.75); this.flash('rgba(255,255,255,.4)'); BF.Sfx&&BF.Sfx.impact&&BF.Sfx.impact(3,true); }
+    if(e.k==='stop') ar.koFx(e.i,'stop',e);
     if(e.k==='gust'){ this.flash('rgba(255,230,120,.25)'); ar.lightning&&ar.lightning(); BF.Sfx&&BF.Sfx.dash(); this.pop(null,'GUST!','#ffd21f'); }
     if(e.k==='nova'){ ar.moveFx&&ar.moveFx(e.i,0xffffff); this.flash('rgba(255,255,255,.5)'); ar.shake=Math.min(8,(ar.shake||0)+4); }
-    if(e.k==='hit'){ ar.spark(e.x,e.y,this.match.stadium.depth*Math.min(Math.hypot(e.x,e.y),ar.R)**2/ar.R,e.s); BF.Sfx && BF.Sfx.clash(e.s); }
-    if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
-    if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); this.flash('rgba(255,46,136,.45)'); }
+        if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
+    if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); this.flash('rgba(255,46,136,.5)'); this.freeze(0.17,0.95); }
     if(e.k==='dash'){ BF.Sfx && BF.Sfx.dash(); }
-    if(e.k==='move'){ this.moveCall(e); if(BF.Missions&&this.myPlayers().includes(e.i)){ BF.Missions.bump('move'); if(e.sig) BF.Missions.bump('sig'); } }
+    if(e.k==='move'){ this.moveCall(e); if(BF.Missions&&!this.match.practice&&this.myPlayers().includes(e.i)){ BF.Missions.bump('move'); if(e.sig) BF.Missions.bump('sig'); } }
     if(e.k==='status'){ const S=BF.STATUS[e.s]; if(S) this.pop(e.i,S.label.toUpperCase()+'!',S.color); BF.Sfx && BF.Sfx.status && BF.Sfx.status(); }
     if(e.k==='lean') ar.marker && ar.marker(e.x,e.y,e.i===0?0x2ef2ff:0xff2e88);
     if(e.k==='hit' && e.eff==='super') this.pop(null,'Super effective!','#ffd21f');
     if(e.k==='hit' && e.eff==='weak') this.pop(null,'Not very effective…','#9aa3b5');
     if(e.k==='click'){ ar.spark(e.x,e.y,14,700,0xffd21f); BF.Sfx && BF.Sfx.click&&BF.Sfx.click(e.n); const bar=$('#bm'+(e.i+1)); if(bar){ bar.parentNode.classList.remove('pop'); void bar.offsetWidth; bar.parentNode.classList.add('pop'); } }
   },
+  // real hit strengths: about half are under 650, the top 3% over 1000 (a move in play counts extra)
+  hitFx(e){ const ar=this.arena, S=e.s*(e.mv?1.25:1), tier=S>=1000?3:S>=800?2:S>=650?1:0, now=performance.now(), z=this.match.stadium.depth*Math.min(Math.hypot(e.x,e.y),ar.R)**2/ar.R, col=e.same?0xffd98a:0x8fdcff;
+    const ready=now-(this._bigT||0)>420, t=tier>=2&&!ready?1:tier; if(t>=2) this._bigT=now;
+    ar.impact(e.x,e.y,z,t,col); BF.Sfx&&BF.Sfx.impact&&BF.Sfx.impact(t,e.same);
+    if(t===1) this.freeze(0.03,0); if(t===2){ this.freeze(0.07,0); ar.punch(e.x,e.y,z,0.1,0.32); this.flash('rgba(255,255,255,.14)'); }
+    if(t===3){ this.freeze(0.13,0.3); ar.punch(e.x,e.y,z,0.24,0.55); this.flash('rgba(255,255,255,.34)'); }
+    if(e.st){ ar.stealFx(e.st.from,e.st.to); if(e.st.a>4&&now-(this._stealT||0)>2600){ this._stealT=now; this.pop(e.st.to,'SPIN STEAL!','#7fe9ff'); } } },
+  freeze(stop,slow){ if(BF.Settings&&BF.Settings.get('impactFx')===false) return; this.hitStop=Math.max(this.hitStop||0,stop*BF.feel('hitstop')); if(slow&&!document.documentElement.classList.contains('reduce-motion')) this.slowT=Math.max(this.slowT||0,slow*BF.feel('slowmo')); },
+  // ---------- practice arena: a dummy, floating damage numbers, live stats, no rewards ----------
+  PRACTICE_DUMMIES:{still:'Standing still',attack:'Attack type',stamina:'Stamina type',defense:'Defense type'},
+  dummyDesign(kind,system){ const list=(BF.PRESETS||[]).filter(p=>(p.patch.system||p.sys)===system), want={attack:/attack|slash|upper/i,stamina:/stamina/i,defense:/defen|wall|tank|heavy/i}[kind]; const p=(want&&list.find(x=>want.test(x.blurb||'')))||list[0]||BF.PRESETS[0]; return BF.normalize(Object.assign(BF.defaultDesign(),BF.clone(p.patch))); },
+  practiceReset(){ const P=this.practice; P.hits=0; P.best=0; P.burst=0; P.rails=0; this.pracHud(); },
+  practiceStart(d1,n1,stadium){ this.practice=this.practice||{kind:'still',infinite:true,hits:0,best:0,burst:0,rails:0}; this.mode='practice'; const P=this.practice, d2=this.dummyDesign(P.kind==='still'?'attack':P.kind,d1.system);
+    this.startMatch({d1,d2,n1,n2:'Practice dummy',stadium,seed:(Math.random()*1e9)|0,moves:true,prog:true,practice:true}); this.practiceReset(); },
+  pracHud(){ let el=$('#pracHud'); const on=this.match&&this.match.practice&&this.st!=='setup'; if(!on){ if(el) el.hidden=true; return; } if(!el){ el=document.createElement('aside'); el.id='pracHud'; $('#view-battle').appendChild(el); } el.hidden=false; const P=this.practice, sim=this.sim, b=sim&&sim.b&&sim.b[0];
+    const open=this._pracOpen!=null?this._pracOpen:window.innerWidth>1000;
+    el.innerHTML=`<details${open?' open':''}><summary>Practice arena</summary><div class="pr-grp">${Object.entries(this.PRACTICE_DUMMIES).map(([k,l])=>`<button type="button" data-pk="${k}" class="${P.kind===k?'on':''}">${l}</button>`).join('')}</div>
+      <div class="pr-grp"><button type="button" data-po="inf" class="${P.infinite?'on':''}">Infinite spin: ${P.infinite?'On':'Off'}</button><button type="button" data-po="path" class="${this._noPath?'':'on'}">Launch path: ${this._noPath?'Off':'On'}</button></div>
+      <dl><div><dt>Hits</dt><dd id="prH">${P.hits}</dd></div><div><dt>Hardest hit</dt><dd id="prB">${Math.round(P.best)}</dd></div><div><dt>Spin left</dt><dd id="prS">${b?Math.round(b.w/b.w0*100)+'%':'-'}</dd></div><div><dt>Burst damage</dt><dd id="prD">${Math.round(((sim&&sim.practice&&sim.practice.dealt)||0)*100)}%</dd></div><div><dt>Rail rides</dt><dd id="prR">${P.rails}</dd></div></dl></details>
+      <div class="pr-act"><button type="button" class="btn primary" data-pa="reset">Re-launch</button><button type="button" class="btn" data-pa="exit">Exit</button></div>`;
+    el.querySelector('details').ontoggle=e=>{ this._pracOpen=e.target.open; };
+    el.querySelectorAll('[data-pk]').forEach(x=>x.onclick=()=>{ P.kind=x.dataset.pk; this.practiceAgain(); });
+    el.querySelectorAll('[data-po]').forEach(x=>x.onclick=()=>{ if(x.dataset.po==='inf'){ P.infinite=!P.infinite; if(this.sim&&this.sim.practice) this.sim.practice.infinite=P.infinite; } else { this._noPath=!this._noPath; if(this.st==='launch') this.practiceAgain(); } this.pracHud(); });
+    el.querySelector('[data-pa=reset]').onclick=()=>this.practiceAgain();
+    el.querySelector('[data-pa=exit]').onclick=()=>{ this.sim=null; this.match=null; this._aim=null; document.body.classList.remove('infight'); this.hideMoveBar(); $('#banner').hidden=true; this.arena.live=false; this.arena.clearPreview(); this.arena.clearLaunchers(); el.hidden=true; this.mode='practice'; this.renderSetup(); }; },
+  practiceAgain(){ const m=this.match; this.sim=null; this.arena.live=false; document.body.classList.remove('infight'); this.hideMoveBar(); $('#banner').hidden=true; this.arena.clearLaunchers(); this.practiceStart(m.d1,m.n1,m.stadium); },
+  practiceHit(e){ const P=this.practice; P.hits++; P.best=Math.max(P.best,e.s); const ar=this.arena, z=this.match.stadium.depth*Math.min(Math.hypot(e.x,e.y),ar.R)**2/ar.R, p=ar.project(e.x,e.y,z+14), S=e.s*(e.mv?1.25:1), n=document.createElement('span'); n.className='pr-num t'+(S>=1000?3:S>=800?2:S>=650?1:0); n.textContent=Math.round(e.s); n.style.left=p.x+'px'; n.style.top=p.y+'px'; $('#view-battle').appendChild(n); setTimeout(()=>n.remove(),900);
+    const H=$('#prH'), B2=$('#prB'); if(H) H.textContent=P.hits; if(B2) B2.textContent=Math.round(P.best); },
   roundEnd(res,score,fromNet){
+    if(this.match&&this.match.practice){ this.st='roundEnd'; this.arena.live=false; document.body.classList.remove('infight'); this.hideMoveBar(); const ban=$('#banner'); ban.hidden=false; ban.className='banner finish '+res.how; ban.innerHTML=`<small>${FINISH[res.how]}</small><b>Practice</b><span>No points or rewards here</span>`; setTimeout(()=>{ if(this.match&&this.match.practice&&this.st==='roundEnd') this.practiceAgain(); },1500); return; }
     this.st='roundEnd'; document.body.classList.remove('infight'); if(score) this.score=score; this.hideMoveBar();
     // moves picked this round go on cooldown for the next one
     if(this.launches) this.lastMoves=[0,1,2].map(i=>(this.launches[i]&&this.launches[i].moves)||[]);
@@ -349,11 +395,13 @@ const B = BF.BattleUI = {
     if(this.mode==='online'&&BF.Net.role==='guest'){ BF.Net.send({t:'in',k:'move',s}); btn.classList.add('used'); return; }
     if(this.sim) this.sim.useMove(p,s);
   },
-  lean(p,x,y){ if(this.st!=='fight') return; BF.Missions&&BF.Missions.bump('lean');
+  lean(p,x,y){ if(this.st!=='fight') return; if(!(this.match&&this.match.practice)) BF.Missions&&BF.Missions.bump('lean');
     if(this.mode==='online'&&BF.Net.role==='guest'){ BF.Net.send({t:'in',k:'lean',x,y}); this.arena.marker&&this.arena.marker(x,y,0xff2e88); return; }
     if(this.sim) this.sim.lean(p,x,y); },
   bindControls(){
-    $('#arena').addEventListener('pointerdown',e=>{ if(this.st!=='fight'||!this.movesOn) return; const w=this.arena.pick(e.clientX,e.clientY); if(!w) return;
+    let aiming=false; const aimAt=e=>{ const w=this._aim&&this.arena.pick(e.clientX,e.clientY); if(w) this._aim(w); };
+    $('#arena').addEventListener('pointermove',e=>{ if(aiming&&this.st==='launch') aimAt(e); }); window.addEventListener('pointerup',()=>{ aiming=false; });
+    $('#arena').addEventListener('pointerdown',e=>{ if(this.st==='launch'&&this._aim){ aiming=true; aimAt(e); return; } if(this.st!=='fight'||!this.movesOn) return; const w=this.arena.pick(e.clientX,e.clientY); if(!w) return;
       const p=this.mode==='local'?(w.y<0?0:1):this.mode==='online'?this.me:0; this.lean(p,w.x,w.y); });
     window.addEventListener('keydown',e=>{ if(this.st!=='fight'||$('#view-battle').hidden||e.target.matches('input,textarea,select')) return;
       this.myPlayers().forEach(p=>{ const s=this.moveKeys(p).indexOf(e.key); if(s>=0){ e.preventDefault(); this.fireMove(p,s); } }); });
@@ -408,13 +456,13 @@ const B = BF.BattleUI = {
       let snap=null;
       if(this.st==='setup' && this.preview){ this.preview.ang-=dt*30; const R=this.arena.R||190; snap={b:[[0,0,0,this.preview.ang,1,1,0,1,0,0],[0,0,0,0,1,1,0,0,1,0]]}; }
       else if(this.sim && this.st==='fight'){
-        if(this.hitStop>0){ this.hitStop-=dt; } else this.acc+=dt; const h=1/120;
+        if(!(this.hitStop>0)) this.acc+=dt*(this.slowT>0?0.24:1)*BF.feel('speed'); const h=1/120;
         while(this.acc>=h && !this.sim.done){ this.sim.step(h); this.acc-=h; }
-        if((this.mode==='cpu'||this.raid) && this.movesOn){ this.aiAcc+=dt; if(this.aiAcc>=0.25){ this.aiAcc=0; if(this.raid) BF.MoveAI.tick(this.sim,2,'expert',this.aiMem[2]); else BF.MoveAI.tick(this.sim,1,this.cpuLv(),this.aiMem[1]); } }
+        if((this.mode==='cpu'||this.raid) && this.movesOn && !this.match.practice){ this.aiAcc+=dt; if(this.aiAcc>=0.25){ this.aiAcc=0; if(this.raid) BF.MoveAI.tick(this.sim,2,'expert',this.aiMem[2]); else BF.MoveAI.tick(this.sim,1,this.cpuLv(),this.aiMem[1]); } }
         const ev=this.sim.events.splice(0); ev.forEach(e=>this.fx(e)); if(this.mode==='online') this.evQ.push(...ev);
         snap=this.sim.snapshot();
         if(this.mode==='online'){ this.sendT-=dt; if(this.sendT<=0){ BF.Net.send({t:'s',s:snap,ev:this.evQ.splice(0)}); this.sendT=1/30; } }
-        this.updateHud(snap);
+        this.updateHud(snap); if(this.match.practice&&this.sim.b){ const e2=$('#prS'), d2=$('#prD'), y=this.sim.b[1]; if(e2) e2.textContent=Math.round(this.sim.b[0].w/this.sim.b[0].w0*100)+'%'; if(d2) d2.textContent=Math.round((this.sim.practice.dealt||0)*100)+'%'; }
         if(this.sim.done){ this.lastHow=this.sim.done.how; const res=this.sim.done;
           const lost=this.sim.b.filter(b=>b.team!==res.winner).sort((x,y)=>(y.outT||0)-(x.outT||0))[0]; if(lost){ this.arena.focus(lost.x,lost.y,lost.z,1.7); this.slow=1.1; } this.sim=null; if(this.mode==='online') BF.Net.send({t:'s',s:snap,ev:this.evQ.splice(0)}); setTimeout(()=>this.roundEnd(res),700); }
       } else if(this.netSnap){
@@ -423,7 +471,7 @@ const B = BF.BattleUI = {
       }
       if(this.st==='fight' && this.mode==='online' && BF.Net.role==='guest' && snap){ this.guestAng=this.guestAng||[0,0]; snap.b.forEach((s,i)=>{ this.guestAng[i]+= (this.F[i].d.spin==='left'?1:-1)*s[4]*dt; s[3]=this.guestAng[i]; }); }
       if(this.st==='fight' && snap){ this.syncMoveBar(snap); this.statusFx(snap); }
-      let rdt=dt; if(this.slow>0){ this.slow-=dt; rdt=dt*0.3; }
+      let rdt=dt; if(this.hitStop>0){ this.hitStop-=dt; rdt=dt*0.05; } else if(this.slowT>0){ this.slowT-=dt; rdt=dt*0.3; } else if(this.slow>0){ this.slow-=dt; rdt=dt*0.3; }
       this.arena.tickDebris(rdt);
       this.arena.render(snap,rdt);
     };
