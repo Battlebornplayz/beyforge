@@ -53,6 +53,13 @@
   - `BF.Catalog.pool` is shared by pack rolls and the odds shown on part pages.
   - The tutorial no longer mentions 3D printing (owner's request).
 
+- **V7.0 (Gameplay overhaul wave 1, see `docs/GAMEPLAY_DESIGN.md`):**
+  - Hit tiers come from measured hit strengths (`BattleUI.hitFx`): about 50% under 650, top 3% over 1000. `Arena.impact` draws them, `BF.feel(key)` reads Studio sliders (`config/economy` → `feel`).
+  - Launch: `BattleUI.launchPanel`, `BF.predictLaunch`, `Arena.setPreview`. `l.misfire` is applied in `BF.Sim.launch`.
+  - Cameras: `Arena.battleCam` + Settings `camera`. Arena surroundings: `BF.buildRoom` in `js/hd.js`.
+  - Practice: `BattleUI.practice*`, `sim.practice`. It saves nothing and gives no rewards.
+  - Builder: `PartsUI.deckBuilder`.
+
 ## Known issues
 - **Official names and printing still in the game.** Not cleaned up in V6.8:
   - "Beyblade": `manifest.webmanifest`, the X Booster description in `js/packs.js`, `js/ui.js` (Generation option, ID card), `js/export.js`, `js/terrain.js`, and others (grep to get them all).

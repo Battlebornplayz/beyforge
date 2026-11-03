@@ -54,10 +54,10 @@ const STATUS_KEYS=['burn','freeze','shock','stagger','break','daze','armor'];
 const STATUS_T={burn:3,freeze:2,shock:1.5,stagger:1.5,break:4,daze:2,armor:2.5};
 // named launch shots: how the Bey leaves the launcher
 BF.SHOTS = {
-  flat:   {label:'Flat Shot',      desc:'Straight, steady launch. No surprises.'},
-  bank:   {label:'Bank Shot',      desc:'Leans in and curves toward the center — hunts early.'},
-  sliding:{label:'Sliding Shoot',  desc:'Rides the rim fast and keeps spin longer at the start.'},
-  power:  {label:'Power Shoot',    desc:'Max spin and speed, but starts with a wobble.'}
+  flat:   {label:'Flat Shot',      desc:'Straight, steady launch. No surprises.', speed:'Normal', spin:'Normal', extra:'Steady start'},
+  bank:   {label:'Bank Shot',      desc:'Leans in and curves toward the center — hunts early.', speed:'+8%', spin:'Normal', extra:'Hunts sooner'},
+  sliding:{label:'Sliding Shoot',  desc:'Rides the rim fast and keeps spin longer at the start.', speed:'+12%', spin:'Normal', extra:'30% less spin loss for 4 s'},
+  power:  {label:'Power Shoot',    desc:'Max spin and speed, but starts with a wobble.', speed:'+12%', spin:'+10%', extra:'Starts with a wobble'}
 };
 BF.Sim = class {
   // fighters: f1, f2 (+ opts.extra for a 3rd Bey, e.g. a raid boss). opts.teams = team index per Bey.
@@ -69,7 +69,7 @@ BF.Sim = class {
     this.decayK = BF.Settings ? BF.Settings.decayK() : 0.7;   // round length setting
     this.movesOn=true; this.elemOn=true;
     this.terrain=stadium.terrain&&BF.TERRAINS&&BF.TERRAINS[stadium.terrain]?stadium.terrain:'none';
-    this.spots=BF.terrainSpots?BF.terrainSpots(this.terrain,this.R):[]; this.gustT=2.5; this.kb=BF.feel('knockback');
+    this.spots=BF.terrainSpots?BF.terrainSpots(this.terrain,this.R):[]; this.gustT=2.5; this.kb=BF.feel('knockback'); this.practice=opts.practice||null;
   }
   // l = {power 0.35..1, angle -30..30 deg, spin, mode, shot, pos:{a,r}, moves:[ids], perks}
   launch(...ls){
@@ -84,16 +84,16 @@ BF.Sim = class {
       // launched along the rim in the spin direction, angled inward; tilt + shot steer it
       const tang=Math.atan2(y,x)+(sign>0?Math.PI/2:-Math.PI/2);
       const lean={flat:0,bank:14,sliding:-14,power:0}[shot];
-      const inward=tang+(sign>0?1:-1)*(28+(l.angle||0)+lean)*Math.PI/180;
-      const sp=(260+l.power*620)*({flat:1,bank:1.08,sliding:1.12,power:1.12}[shot]);
+      const miss=l.misfire?(this.rand()-0.5)*0.8:0, inward=tang+(sign>0?1:-1)*(28+(l.angle||0)+lean)*Math.PI/180+miss;
+      const sp=(260+l.power*620)*({flat:1,bank:1.08,sliding:1.12,power:1.12}[shot])*(l.misfire?0.78:1);
       const perks=l.perks||[];
-      const w=600*(0.55+0.45*l.power)*(shot==='power'?1.1:1)*(perks.includes('grit')?1.04:1);
+      const w=600*(0.55+0.45*l.power)*(shot==='power'?1.1:1)*(perks.includes('grit')?1.04:1)*(l.misfire?0.9:1);
       const els=f.els||[], home=this.terrain!=='none'&&els.some(e=>BF.TERRAINS[this.terrain].els.includes(e));
       const b={i,team:this.team[i],x,y,vx:sp*Math.cos(inward),vy:sp*Math.sin(inward), w, w0:w,
         sign, ang:this.rand()*TAU, ph:this.rand()*TAU, phr:0.85+0.3*this.rand(), dmg:0, tilt:shot==='power'?0.3:0, alive:true, out:false, burst:false,
         dash:0, dashCd:0, hitCd:0, z:0, shot, bmode:l.bmode||'attack', fx:{}, st:{}, next:{}, moveT:0, moveEl:null, leanT:0, leanCd:0, zigT:0, home,
         moves:(this.movesOn&&l.moves)?l.moves.slice(0,3):[], used:[false,false,false], perks, ...tipFor(f,l)};
-      if(shot==='sliding') b.fx.slide=4;
+      if(shot==='sliding') b.fx.slide=4; if(l.misfire) b.tilt=Math.max(b.tilt,0.5);
       return b;
     });
     this.t=0; this.done=null; this.events=[]; this.heat=0;
@@ -125,6 +125,7 @@ BF.Sim = class {
       B.forEach(b=>{ if(!b.alive) return; const k=b.home?220:520; b.vx+=Math.cos(ga)*k; b.vy+=Math.sin(ga)*k; }); this.events.push({k:'gust',a:ga}); } }
     for(let i=0;i<B.length;i++){
       const b=B[i], f=F[i]; if(!b.alive) continue;
+      if(this.practice){ const P=this.practice; if(i===1){ P.dealt=(P.dealt||0)+b.dmg; b.w=b.w0; b.dmg=0; if(P.still){ b.x=0; b.y=0; b.vx=0; b.vy=0; b.z=0; b.ang+=b.sign*b.w*dt; continue; } } else if(P.infinite){ b.w=b.w0; b.dmg=0; } }
       const fx=b.fx, S=b.st, o=this.nearestFoe(i);
       const r=Math.hypot(b.x,b.y)||1e-6, ux=b.x/r, uy=b.y/r;
       // bowl pulls toward center (Void Temple pulls harder)
@@ -205,7 +206,9 @@ BF.Sim = class {
     for(let i=0;i<B.length;i++) for(let j=i+1;j<B.length;j++) this.collide(i,j);
     // decide: a team is out when all its Beys are out
     const teams=[...new Set(this.team)], alive=teams.filter(t=>B.some(b=>b.team===t&&b.alive));
-    if(alive.length<=1){
+    if(this.practice&&B[1]&&!B[1].alive){ B[1].alive=true; B[1].out=false; B[1].burst=false; B[1].x=0; B[1].y=0; B[1].vx=0; B[1].vy=0; }
+    if(this.practice&&B[0].alive){ /* practice only ends when you go out */ }
+    else if(alive.length<=1){
       let winner, how;
       if(alive.length===1){ winner=alive[0]; const losers=B.filter(b=>b.team!==winner); const last=losers.sort((x,y)=>(y.outT||0)-(x.outT||0))[0]||losers[0]; how=last.burst?'burst':last.out?last.out:'spin'; }
       else { // everyone went down on the same step
@@ -291,6 +294,10 @@ BF.Sim = class {
     STATUS_KEYS.reduce((m,k,j)=>m|(b.st[k]?1<<j:0),0), b.used.reduce((m,u,j)=>m|(u?1<<j:0),0)]), done:this.done}; }
 };
 BF.STATUS_KEYS=STATUS_KEYS;
+// launch preview: a quiet dry run of the first moments, with no opponent in the way
+BF.predictLaunch=function(f,foe,stadium,l,who){ const sim=new BF.Sim(who===0?f:foe,who===0?foe:f,stadium,424242), other=1-who, ls=[{power:0.85,angle:0},{power:0.85,angle:0}]; ls[who]=Object.assign({power:0.9},l,{moves:[],misfire:false});
+  sim.movesOn=false; sim.elemOn=false; sim.launch(...ls); sim.b[other].alive=false; const pts=[]; const me=sim.b[who]; pts.push([me.x,me.y,me.z]);
+  for(let k=1;k<=190;k++){ sim.step(1/120); sim.done=null; sim.events.length=0; if(!me.alive) break; if(k%5===0) pts.push([me.x,me.y,me.z]); } return pts; };
 
 // ---------- arena renderer ----------
 let _glow=null, _soft=null, _streakG=null; const _railC=new T.Color(0xffe600), _tv=new T.Vector3();
@@ -341,7 +348,7 @@ BF.Arena = class {
   // ---------- cinematic camera ----------
   // launch close-up: camera eases onto your Bey and a 3D launcher sits on top of it
   launchView(i,at){ const v=this.beys[i]; if(!v) return; this.clearLaunchers();
-    const p=at?new T.Vector3(at.x,at.y,at.z):v.root.position.clone(); if(at) v.root.position.copy(p); this.camFx={kind:'hold',t:0,dur:0.9,at:new T.Vector3(p.x,p.y,p.z+10),dist:Math.max(175,(v.f.R||22)*8)};
+    const p=at?new T.Vector3(at.x,at.y,at.z):v.root.position.clone(); if(at) v.root.position.copy(p);
     const L=this.launcher(i===0?0x2ef2ff:0xff2e88); L.scale.setScalar(0.8); L.rotation.z=Math.PI; L.position.set(0,0,(v.f.asm?v.f.asm.height:24)+5); v.root.add(L); v.launcher=L; }
   launcher(color){ const g=new T.Group(), dark=new T.MeshStandardMaterial({color:0x15161e,metalness:.2,roughness:.6,envMapIntensity:.2}), acc=new T.MeshStandardMaterial({color,metalness:.6,roughness:.3,emissive:color,emissiveIntensity:.25});
     const body=new T.Mesh(new T.CylinderGeometry(15,17,9,32),dark); body.rotation.x=Math.PI/2; body.position.z=4.5; g.add(body);
@@ -351,7 +358,7 @@ BF.Arena = class {
     const grip=new T.Mesh(new T.BoxGeometry(8,6,24),dark); grip.position.set(0,20,18); grip.rotation.x=0.45; g.add(grip);
     const prongs=new T.Group(); for(let k=0;k<3;k++){ const pr=new T.Mesh(new T.BoxGeometry(3,3,6),acc); const a=k*Math.PI*2/3; pr.position.set(Math.cos(a)*11,Math.sin(a)*11,-1); prongs.add(pr); } g.add(prongs);
     g.userData.cord=cordEnd; return g; }
-  releaseLaunchers(){ (this.beys||[]).forEach(v=>{ if(v.launcher){ v.launcher.userData.fly=0.01; } }); this.camFx=null; }
+  releaseLaunchers(){ this.clearPreview(); this.liftY=0; (this.beys||[]).forEach(v=>{ if(v.launcher){ v.launcher.userData.fly=0.01; } }); this.camFx=null; }
   clearLaunchers(){ (this.beys||[]).forEach(v=>{ if(v.launcher){ v.root.remove(v.launcher); v.launcher=null; } }); }
   intro(){ if(!this.camBase||document.documentElement.classList.contains('reduce-motion')) return; const R=this.R||190; this.camFx={kind:'intro',t:0,dur:1.9,from:new T.Vector3(R*1.6,-R*0.9,R*0.55)}; }
   focus(x,y,z,dur){ this.camFx={kind:'focus',t:0,dur:dur||1.6,at:new T.Vector3(x,y,z||0),from:this.cc?this.cc.pos.clone():null,fromLook:this.cc?this.cc.look.clone():null}; }
@@ -384,6 +391,15 @@ BF.Arena = class {
     const tilt=portrait?0.66:1.0, need=(sep+R*0.42)/fit, dist=Math.max(R*(portrait?1.55:1.3),Math.min(need,R/fit*1.05)), side=Math.sin(this.camT*0.17)*0.16;
     const look=new T.Vector3(cx*0.72,cy*0.72,4);
     return {pos:new T.Vector3(look.x+Math.sin(side)*Math.sin(tilt)*dist,look.y-Math.cos(side)*Math.sin(tilt)*dist,look.z+Math.cos(tilt)*dist),look}; }
+  // launch preview: glowing path, landing ring and an arrow at the end
+  setPreview(pts,color){ this.clearPreview(); if(!pts||pts.length<3) return; const g=new T.Group(), c=color||0xffe600, top=pts.map(p=>new T.Vector3(p[0],p[1],p[2]+5));
+    const tube=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(top),Math.min(120,pts.length*3),1.25,6,false),new T.MeshBasicMaterial({color:c,transparent:true,opacity:0.92,depthTest:false,depthWrite:false})); tube.renderOrder=6; g.add(tube);
+    const ring=new T.Mesh(new T.RingGeometry(16,20,48),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,depthTest:false,depthWrite:false})); ring.position.copy(top[0]); ring.renderOrder=6; g.add(ring);
+    const dot=new T.Mesh(new T.CircleGeometry(5,24),ring.material.clone()); dot.position.copy(top[0]); dot.renderOrder=6; g.add(dot);
+    const end=top[top.length-1], pre=top[top.length-2], cone=new T.Mesh(new T.ConeGeometry(6,16,14),new T.MeshBasicMaterial({color:c,depthTest:false,depthWrite:false,transparent:true})); cone.position.copy(end); cone.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),end.clone().sub(pre).normalize()); cone.renderOrder=6; g.add(cone);
+    this.preview=g; this.scene.add(g); }
+  clearPreview(){ if(!this.preview) return; this.scene.remove(this.preview); this.preview.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); }); this.preview=null; }
+  project(x,y,z){ const v=new T.Vector3(x,y,z).project(this.camera), r=this.el.getBoundingClientRect(); return {x:(v.x+1)/2*r.width,y:(1-v.y)/2*r.height}; }
   punch(x,y,z,amt,dur){ if(document.documentElement.classList.contains('reduce-motion')) return; amt*=BF.feel('zoom'); if(amt<=0) return; this.kick={at:new T.Vector3(x,y,z||0),t:0,dur:dur||0.4,amt}; }
   // ---------- impact: sparks, flash, shockwave, light and shake, scaled by tier 0..3 ----------
   impact(x,y,z,tier,color){
@@ -404,7 +420,7 @@ BF.Arena = class {
   // spin steal: sparks stream from the loser into the winner
   stealFx(from,to){ const a=this.beys[from], b=this.beys[to]; if(!a||!b||!this.partOn()) return; const pa=a.root.position, pb=b.root.position; for(let q=0;q<10;q++){ const f=0.55+Math.random()*0.5; this.particle(pa.x,pa.y,pa.z+8,(pb.x-pa.x)*2.3*f,(pb.y-pa.y)*2.3*f,50+Math.random()*50,0.42,0x7fe9ff,1.0,160); } }
   setup(stadium, f1, f2, f3){
-    this.cc=null; this.kick=null; this.camT=0; this.camCut=0;
+    this.cc=null; this.kick=null; this.camT=0; this.camCut=0; this.clearPreview();
     if(this.room){ this.scene.remove(this.room); this.room=null; } const roomQ=!BF.Settings||BF.Settings.get('quality'); if(BF.buildRoom&&roomQ!=='low'){ this.room=BF.buildRoom(stadium.diameter/2,roomQ==='high'||roomQ===true); this.scene.add(this.room); }
     if(this.stadiumMesh){ this.scene.remove(this.stadiumMesh); }
     this.beys.forEach(b=>{ if(b){ this.scene.remove(b.root); if(b.trail){ this.scene.remove(b.trail); b.trail.geometry.dispose(); } } }); this.live=false;
@@ -507,6 +523,7 @@ BF.Arena = class {
     for(let i=this.sparks.length-1;i>=0;i--){ const m=this.sparks[i], u=m.userData; u.life-=dt; u.vz-=(u.grav??600)*dt; m.position.x+=u.vx*dt; m.position.y+=u.vy*dt; m.position.z+=u.vz*dt; if(u.streak){ if(m.position.z<1&&u.vz<0){ m.position.z=1; u.vz=-u.vz*0.45; u.vx*=0.7; u.vy*=0.7; } const f=Math.max(0.05,u.life/u.max), sp=Math.hypot(u.vx,u.vy,u.vz); m.scale.set(u.w*f,u.w*f,Math.max(1,sp*0.028)*f+0.6); _tv.set(m.position.x+u.vx,m.position.y+u.vy,m.position.z+u.vz); m.lookAt(_tv); } else m.scale.setScalar(Math.max(0.1,u.max?u.life/u.max*1.5:u.life*2.5)); if(m.material.opacity!==undefined&&u.max) m.material.opacity=Math.min(1,u.life/u.max*1.5);
       if(u.life<=0){ this.scene.remove(m); if(!u.shared) m.geometry.dispose(); m.material.dispose(); this.sparks.splice(i,1); } }
     const cam=this.camera; let pose=this.camFx?this.camPose(dt):(this.live?this.battleCam(snap,dt):this.camPose(dt));
+    if(pose&&this.liftY&&!this.live){ pose={pos:pose.pos.clone(),look:pose.look.clone()}; pose.pos.y-=this.liftY; pose.look.y-=this.liftY; }
     if(pose){ if(!this.cc) this.cc={pos:pose.pos.clone(),look:pose.look.clone()}; else { const calm=document.documentElement.classList.contains('reduce-motion'), k=calm?1:1-Math.exp(-dt*(this.camFx?12:this.live?3.6:6)); this.cc.pos.lerp(pose.pos,k); this.cc.look.lerp(pose.look,k); }
       let look=this.cc.look; cam.position.copy(this.cc.pos);
       if(this.kick){ const K=this.kick; K.t+=dt; const u=K.t/K.dur; if(u>=1) this.kick=null; else { const w=Math.sin(Math.min(1,u*2.4)*Math.PI*0.5)*(1-u)*1.4*K.amt; cam.position.lerp(K.at,w); look=look.clone().lerp(K.at,w); } }

@@ -187,20 +187,61 @@ const UI = BF.PartsUI = {
   },
   dummy(slot,system){ const d=BF.defaultDesign(); d.system=system; return {slot,system,data:P().extract(BF.normalize(d),slot)}; },
   // ---------- Battle Bey builder ----------
+  // ---------- Battle Bey builder: live 3D, stats, and parts ranked for the goal you pick ----------
   deckBuilder(){
-    const Pa=P(), m=$('#partModal'), b=$('#partBody'); m.hidden=false; const pick={blade:null,core:null,driver:null};
-    const draw=()=>{ const sys=pick.blade?Pa.get(pick.blade).system:null;
-      b.innerHTML=`<div class="modal-head"><h3>Build a Battle Bey</h3><button class="icon-x big" data-x>×</button></div>
-        <label class="fl">Name<input class="txt sm" id="dkName" maxlength="28" value="${esc(this._dkName||'')}" placeholder="e.g. Crimson Fang"></label>
-        ${['blade','core','driver'].map(s=>{ const opts=Pa.bySlot(s).filter(p=>!sys||s==='blade'||p.system===sys); return `<h4>${SL[s]}${s!=='blade'&&sys?` <span class="dim small">(${sys==='X'?'X':'Burst'} parts)</span>`:''}</h4><div class="partgrid sm">${opts.map(p=>partCard(p).replace('class="pcard2','class="pcard2'+(pick[s]===p.id?' on':'')).replace('data-pid=',`data-slot="${s}" data-pid=`)).join('')||'<div class="fine">You don’t own one yet — open a pack or mint one from the Forge.</div>'}</div>`; }).join('')}
-        <div class="modal-acts"><button class="btn primary" id="dkSave">Save Battle Bey</button></div>`;
-      b.querySelector('[data-x]').onclick=()=>m.hidden=true;
-      b.querySelector('#dkName').oninput=e=>this._dkName=e.target.value;
-      b.querySelectorAll('[data-slot]').forEach(x=>x.onclick=()=>{ const s=x.dataset.slot; pick[s]=x.dataset.pid; if(s==='blade'){ const sy=Pa.get(pick.blade).system; ['core','driver'].forEach(k=>{ if(pick[k]&&Pa.get(pick[k]).system!==sy) pick[k]=null; }); } draw(); });
-      b.querySelector('#dkSave').onclick=async()=>{ try{ const parts=[pick.blade,pick.core,pick.driver]; let name=(this._dkName||'').trim();
-        if(!name){ const d=Pa.assemble(parts.map(id=>Pa.get(id))); name=BF.naming(d).name; }
-        await Pa.addDeck(name,parts); this._dkName=''; m.hidden=true; BF.App.toast(name+' is ready to battle','good'); this.render(); }catch(e){ BF.App.toast(e.message,'bad'); } };
-    }; draw();
+    const Pa=P(), m=$('#partModal'), box=$('#partBody'), card=m.querySelector('.modal-card'), GOALS={attack:'Attack',stamina:'Stamina',defense:'Defense',balanced:'Balanced'}, ST=[['atk','Attack'],['def','Defense'],['sta','Stamina'],['brs','Burst res.'],['stb','Stability']], SLN=(s,sys)=>sys==='Burst'?{blade:'Layer',core:'Disc',driver:'Driver'}[s]:sys==='X'?{blade:'Blade',core:'Ratchet',driver:'Bit'}[s]:{blade:'Blade / Layer',core:'Ratchet / Disc',driver:'Bit / Driver'}[s];
+    m.hidden=false; m.onclick=null; card.classList.add('bb-wide');
+    const pick={blade:null,core:null,driver:null}, S={slot:'blade',goal:this._bbGoal||'attack',all:false,tok:0,prev:null,busy:false}, cache=this._bbCache=this._bbCache||{};
+    box.innerHTML=`<div class="modal-head"><h3>Build a Battle Bey</h3><button class="icon-x big" data-x aria-label="Close">×</button></div>
+      <div class="bb"><section class="bb-l"><label class="fl">Name<input class="txt sm" id="dkName" maxlength="28" value="${esc(this._dkName||'')}" placeholder="Leave blank for an automatic name"></label><div id="bbSlots"></div>
+          <button type="button" class="bb-auto" id="bbAuto">Auto-build my best Bey</button><button type="button" class="bb-save" id="dkSave">Save Battle Bey</button></section>
+        <section class="bb-m"><div class="bb-stage"><canvas aria-label="Your Bey in 3D"></canvas></div><div id="bbStats"></div></section>
+        <section class="bb-r"><div class="bb-goals" role="group" aria-label="What you want this Bey to be good at">${Object.entries(GOALS).map(([k,l])=>`<button type="button" data-g="${k}">${l}</button>`).join('')}</div><div id="bbSug"></div></section></div>`;
+    const sysOf=()=>{ const id=pick.blade||pick.core||pick.driver; return id?Pa.get(id).system:null; };
+    const shape=p=>p.catId||p.id;
+    const copyBonus=p=>{ const out={atk:0,def:0,sta:0,brs:0,stb:0}; if(p&&p.iv) Object.keys(out).forEach(k=>out[k]=(p.iv[k]||0)/31*0.02+((p.ev&&p.ev[k])||0)/30*0.04); return out; };
+    const statsFor=sel=>{ const sys=(sel.blade||sel.core||sel.driver).system, list=['blade','core','driver'].map(k=>sel[k]||this.dummy(k,sys)), key=list.map(p=>p.id?shape(p):'~'+p.slot+p.system).join('|');
+      if(!cache[key]){ const f=BF.fighter(Pa.assemble(list)); cache[key]={atk:f.atk,def:f.def,sta:f.sta,brs:f.brs,stb:f.stb,type:(f.an&&f.an.type)||''}; }
+      const o=Object.assign({},cache[key]); list.forEach(p=>{ const b=copyBonus(p); Object.keys(b).forEach(k=>o[k]*=1+b[k]); }); return o; };
+    const score=(g,s)=>g==='attack'?s.atk+0.15*s.stb+0.15*s.brs+0.05*s.sta:g==='stamina'?s.sta*1.4+0.3*s.stb+0.15*s.def:g==='defense'?s.def*1.4+0.5*s.brs+0.3*s.stb:(s.atk+s.def+s.sta*1.6+s.brs+s.stb)/5+0.5*Math.min(s.atk,s.def,s.sta*1.6,s.brs,s.stb);
+    const curSel=()=>({blade:pick.blade&&Pa.get(pick.blade),core:pick.core&&Pa.get(pick.core),driver:pick.driver&&Pa.get(pick.driver)});
+    const uniq=(slot,sys)=>{ const best={}; Pa.bySlot(slot).filter(p=>!sys||p.system===sys).forEach(p=>{ const k=shape(p), v=Object.values(p.iv||{}).reduce((a,b)=>a+b,0)+(p.xp||0)*0.002; if(!best[k]||v>best[k].v) best[k]={p,v,n:0}; best[k].n++; }); return Object.values(best); };
+    const pause=()=>new Promise(r=>setTimeout(r,0));
+    // live 3D
+    const T=window.THREE, cv=box.querySelector('canvas'); let live=null;
+    try{ const r=new T.WebGLRenderer({canvas:cv,antialias:true,alpha:true}); r.outputEncoding=T.sRGBEncoding; r.toneMapping=T.ACESFilmicToneMapping; r.toneMappingExposure=0.72; r.setPixelRatio(Math.min(2,devicePixelRatio||1));
+      const sc=new T.Scene(), pm=new T.PMREMGenerator(r), es=new T.Scene(); es.add(new T.Mesh(new T.BoxGeometry(200,200,200),new T.MeshBasicMaterial({color:0x0a0818,side:T.BackSide}))); [[0,0,90,0xffffff,4],[-90,20,20,0x2ef2ff,3],[90,-20,30,0xff2e88,3]].forEach(([x,y,z,c,k])=>{ const q=new T.Mesh(new T.PlaneGeometry(120,60),new T.MeshBasicMaterial({color:new T.Color(c).multiplyScalar(k),side:T.DoubleSide})); q.position.set(x,y,z); q.lookAt(0,0,0); es.add(q); }); sc.environment=pm.fromScene(es,0.03).texture;
+      sc.add(new T.HemisphereLight(0xb8c6ff,0x150a20,0.4)); const k=new T.DirectionalLight(0xffffff,1); k.position.set(60,-80,140); sc.add(k);
+      const cam=new T.PerspectiveCamera(30,1,1,3000); cam.up.set(0,0,1); let g=null, rad=30, on=true;
+      const loop=()=>{ if(!on) return; requestAnimationFrame(loop); if(!cv.isConnected) return live.kill(); const w=cv.clientWidth||300,h=cv.clientHeight||240, pr=r.getPixelRatio(); if(cv.width!==Math.floor(w*pr)||cv.height!==Math.floor(h*pr)) r.setSize(w,h,false); cam.aspect=w/h; cam.updateProjectionMatrix(); if(g&&!document.documentElement.classList.contains('reduce-motion')) g.rotation.z-=0.018; const d=rad*4.2; cam.position.set(d*0.55,-d*0.7,d*0.55); cam.lookAt(0,0,0); r.render(sc,cam); };
+      live={ set(d){ if(g){ sc.remove(g); g.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); g=null; } if(!d) return; const asm=BF.build(d); g=BF.beyGroup(asm); const bx=new T.Box3().setFromObject(g), c=bx.getCenter(new T.Vector3()), z=bx.getSize(new T.Vector3()); g.children.forEach(x=>x.position.sub(c)); rad=Math.max(z.x,z.y,z.z*1.2)/2; sc.add(g); }, kill(){ if(!on) return; on=false; r.dispose(); try{ r.forceContextLoss(); }catch(e){} } }; loop(); }catch(e){ live={set(){},kill(){}}; }
+    // panels
+    const drawSlots=()=>{ const sys=sysOf(); $('#bbSlots').innerHTML=['blade','core','driver'].map(s=>{ const p=pick[s]&&Pa.get(pick[s]); return `<button type="button" class="bb-slot${S.slot===s?' on':''}" data-s="${s}" style="--rc:${p?R(p.rarity).color:'#3a3366'}">${p?`<img src="${partIcon(p,96)}" alt="">`:'<i>+</i>'}<span><em>${SLN(s,sys)}</em><b>${p?esc(p.name):'Choose a part'}</b>${p?`<small>Lv ${BF.partLevel(p.xp).lv} · IV ${Math.round(Object.values(p.iv).reduce((a,b)=>a+b,0)/155*100)}%</small>`:''}</span></button>`; }).join(''); box.querySelectorAll('.bb-slot').forEach(x=>x.onclick=()=>{ S.slot=x.dataset.s; S.all=false; drawSlots(); drawSug(); }); };
+    const drawStats=()=>{ const sel=curSel(), any=sel.blade||sel.core||sel.driver, el=$('#bbStats'); if(!any){ el.innerHTML='<p class="bb-empty">Pick a part, or tap Auto-build.</p>'; live.set(null); return; } const s=statsFor(sel), sys=sysOf(), P0=S.prev;
+      el.innerHTML=`<div class="bb-type"><b>${esc(s.type?s.type[0].toUpperCase()+s.type.slice(1)+' type':'Your Bey')}</b>${['blade','core','driver'].every(k=>pick[k])?'':'<span>Missing parts use a plain stand-in</span>'}</div>${ST.map(([k,l])=>{ const v=Math.round(s[k]), d=P0?v-Math.round(P0[k]):0; return `<div class="bb-bar"><span>${l}</span><i><u style="width:${Math.min(100,v)}%"></u></i><b>${v}</b><em class="${d>0?'up':d<0?'down':''}">${d>0?'+'+d:d<0?d:''}</em></div>`; }).join('')}`;
+      try{ live.set(Pa.assemble(['blade','core','driver'].map(k=>sel[k]||this.dummy(k,sys)))); }catch(e){ console.warn('bb 3d',e); } };
+    const setPick=(slot,id)=>{ const before=(pick.blade||pick.core||pick.driver)?statsFor(curSel()):null; pick[slot]=id; const sy=Pa.get(id).system; ['blade','core','driver'].forEach(k=>{ if(pick[k]&&Pa.get(pick[k]).system!==sy) pick[k]=null; }); S.prev=before; drawSlots(); drawStats(); const nx=['blade','core','driver'].find(k=>!pick[k]); if(nx){ S.slot=nx; drawSlots(); } drawSug(); };
+    const drawSug=async()=>{ const tok=++S.tok, el=$('#bbSug'), slot=S.slot, sys=sysOf(), label=SLN(slot,sys), list=uniq(slot,sys); box.querySelectorAll('[data-g]').forEach(b=>b.classList.toggle('on',b.dataset.g===S.goal));
+      if(!list.length){ el.innerHTML=`<h4>${label}</h4><p class="bb-empty">You don't own a ${sys?(sys==='X'?'X':'Burst')+' ':''}part for this slot yet. Open a pack or mint one in the Forge.</p>`; return; }
+      el.innerHTML=`<h4>Best ${esc(label.toLowerCase())}s for ${GOALS[S.goal].toLowerCase()}</h4><p class="bb-empty">Testing your parts…</p>`;
+      const base=curSel(), rows=[]; for(let i=0;i<list.length;i++){ const x=list[i], s=statsFor(Object.assign({},base,{[slot]:x.p})); rows.push(Object.assign({s,sc:score(S.goal,s)},x)); if(i%5===4){ await pause(); if(tok!==S.tok) return; } }
+      rows.sort((a,b)=>b.sc-a.sc); const top=rows[0], show=S.all?rows:rows.slice(0,4);
+      const why=(r,i)=>{ if(i===0) return `Your best ${GOALS[S.goal].toLowerCase()} pick with this build`; const ds=ST.map(([k,l])=>[Math.round(r.s[k])-Math.round(top.s[k]),l]).filter(d=>d[0]!==0).sort((a,b)=>Math.abs(b[0])-Math.abs(a[0])).slice(0,2); return ds.length?ds.map(d=>`${d[0]>0?'+':''}${d[0]} ${d[1].toLowerCase()}`).join(', ')+' vs best':'Same stats as your best pick'; };
+      el.innerHTML=`<h4>Best ${esc(label.toLowerCase())}s for ${GOALS[S.goal].toLowerCase()}</h4>${show.map((r,i)=>{ const on=pick[slot]&&Pa.get(pick[slot])&&shape(Pa.get(pick[slot]))===shape(r.p); return `<button type="button" class="bb-sug${on?' on':''}" data-pick="${r.p.id}" style="--rc:${R(r.p.rarity).color}"><img src="${partIcon(r.p,96)}" alt=""><span><b>${r.p.shiny?'✨ ':''}${esc(r.p.name)}${r.n>1?` <small>x${r.n}</small>`:''}</b><em>${esc(why(r,i))}</em></span><strong class="${i===0?'best':''}">${i===0?'BEST':'#'+(rows.indexOf(r)+1)}</strong></button>`; }).join('')}${rows.length>4?`<button type="button" class="bb-more" id="bbMore">${S.all?'Show fewer':'See all '+rows.length}</button>`:''}`;
+      el.querySelectorAll('[data-pick]').forEach(x=>x.onclick=()=>setPick(slot,x.dataset.pick)); const mo=el.querySelector('#bbMore'); if(mo) mo.onclick=()=>{ S.all=!S.all; drawSug(); }; };
+    const autoBuild=async()=>{ if(S.busy) return; S.busy=true; const btn=box.querySelector('#bbAuto'); btn.disabled=true; btn.textContent='Testing your parts…'; S.tok++; let bestSet=null, bestScore=-1;
+      try{ const systems=sysOf()?[sysOf()]:['X','Burst']; for(const sys of systems){ const opt={blade:uniq('blade',sys),core:uniq('core',sys),driver:uniq('driver',sys)}; if(!opt.blade.length||!opt.core.length||!opt.driver.length) continue; const sel={blade:null,core:null,driver:null};
+          for(let pass=0;pass<2;pass++) for(const slot of ['blade','core','driver']){ let top=null, ts=-1, c=0; for(const x of opt[slot]){ const trial=Object.assign({},sel,{[slot]:x.p}), sc=score(S.goal,statsFor(trial)); if(sc>ts){ ts=sc; top=x.p; } if(++c%5===0) await pause(); } sel[slot]=top; }
+          const fin=score(S.goal,statsFor(sel)); if(fin>bestScore){ bestScore=fin; bestSet=sel; } }
+        if(!bestSet){ BF.App.toast('You need a blade, a core and a driver from the same system first','bad'); }
+        else { S.prev=(pick.blade||pick.core||pick.driver)?statsFor(curSel()):null; ['blade','core','driver'].forEach(k=>pick[k]=bestSet[k].id); S.slot='driver'; drawSlots(); drawStats(); }
+      }catch(e){ console.error(e); BF.App.toast('Auto-build hit a problem. Try picking parts yourself.','bad'); }
+      S.busy=false; if(box.isConnected&&btn.isConnected){ btn.disabled=false; btn.textContent='Auto-build my best Bey'; } drawSug(); };
+    const close=()=>{ S.tok++; live.kill(); card.classList.remove('bb-wide'); m.hidden=true; };
+    box.querySelector('[data-x]').onclick=close; box.querySelector('#dkName').oninput=e=>this._dkName=e.target.value; box.querySelector('#bbAuto').onclick=autoBuild;
+    box.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ S.goal=this._bbGoal=b.dataset.g; S.all=false; drawSug(); });
+    box.querySelector('#dkSave').onclick=async()=>{ try{ const parts=[pick.blade,pick.core,pick.driver]; let name=(this._dkName||'').trim(); if(parts.every(Boolean)&&!name){ name=BF.naming(Pa.assemble(parts.map(id=>Pa.get(id)))).name; } await Pa.addDeck(name,parts); this._dkName=''; close(); BF.App.toast(name+' is ready to battle','good'); this.render(); }catch(e){ BF.App.toast(e.message,'bad'); } };
+    drawSlots(); drawStats(); drawSug();
   },
   pickFriend(cb){
     const S=BF.Social, ids=Object.keys((S&&S.friends)||{}), m=$('#pickModal'), b=$('#pickBody'); m.hidden=false;
