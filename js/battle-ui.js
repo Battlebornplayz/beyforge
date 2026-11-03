@@ -192,7 +192,7 @@ const B = BF.BattleUI = {
     const label=this.mode==='local'?`Player ${who+1}`:'Your launch';
     const perks=(this.progOn&&(this.mode!=='local'||who===0)&&BF.Parts)?BF.Parts.blader().filter(k=>['steady','grit','quick','focus'].includes(k)):[];
     const perfectAt=perks.includes('steady')?0.84:0.92;
-    this.idlePose(); ar.camFx=null; ar.liftY=ar.camera.aspect<1?R*0.62:0;   // on phones, slide the stadium up above the controls. Also hides the other player's aim on shared screens
+    this.idlePose(); ar.camFx=null; { const nar=window.innerWidth<=1000, asp=ar.camera.aspect; ar.liftY=nar?R*(asp<1?0.62:0.62):0; ar.liftK=nar&&asp>=0.8?1.5:1; }   // on phones, slide the stadium up above the controls. Also hides the other player's aim on shared screens
     if(this.match.practice&&this.practice.kind==='still'&&this.netSnap.b[1]){ const s=this.netSnap.b[1]; s[0]=0; s[1]=0; s[2]=0; }
     this.panel.className='bpanel launch la';
     this.panel.innerHTML=`
