@@ -26,6 +26,7 @@
   - `docs/V5_DESIGN.md`, `docs/UI_DESIGN.md`
   - `docs/STUDIO_DESIGN.md`: 30 dashboard answers + 20 rank-overhaul answers.
   - `docs/ENGAGEMENT_DESIGN.md`: the 20 picked engagement features in waves E1–E4.
+  - `docs/GAMEPLAY_DESIGN.md`: 40 answers for the battle overhaul.
 
 ## Done so far
 - **V6.0–6.4:** UI overhaul, Home, battle HUD, shop, 3D pack opening with real part models.
@@ -63,7 +64,8 @@
 The pane can't open a server in the cloud container. Push a test branch and open `https://rawcdn.githack.com/Battlebornplayz/beyforge/<full commit sha>/index.html`. The first visit shows a notice page to click through. Sign-in won't work there. The owner chose this way of watching.
 
 ## Next up (in order)
-1. **Rest of E2:**
+0. **Gameplay overhaul comes first (owner's call).** See `docs/GAMEPLAY_DESIGN.md`: his 40 answers, proposed waves and risks. Get the waves approved and show mockups before building UI. Packs fix V6.8.1 still needs confirming on his real account.
+1. **Rest of E2 (paused):** one shard currency is decided. Other questions are listed at the end of `docs/GAMEPLAY_DESIGN.md`.
    - Forge Shards (duplicates → shards → craft or level a specific catalog part).
    - Evolutions (max-level part → new look + stronger signature).
    - Masteries (wins per part → titles and frames).
