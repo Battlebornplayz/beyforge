@@ -3,6 +3,8 @@
 'use strict';
 const BF=window.BF, T=THREE, {clamp,lerp}=BF.util;
 const G=9810, TAU=Math.PI*2, BURST_K=5200, KICK_MAX=1350;
+// live-tunable battle feel (Studio → Rewards & economy → Battle feel). 1 = default.
+BF.feel=k=>{ const c=BF.Econ&&BF.Econ.get('feel'), v=c&&c[k]; return v==null?1:+v; };
 
 // ---------- fighter: physical summary of a design ----------
 BF.fighter = function(d, name){
@@ -67,7 +69,7 @@ BF.Sim = class {
     this.decayK = BF.Settings ? BF.Settings.decayK() : 0.7;   // round length setting
     this.movesOn=true; this.elemOn=true;
     this.terrain=stadium.terrain&&BF.TERRAINS&&BF.TERRAINS[stadium.terrain]?stadium.terrain:'none';
-    this.spots=BF.terrainSpots?BF.terrainSpots(this.terrain,this.R):[]; this.gustT=2.5;
+    this.spots=BF.terrainSpots?BF.terrainSpots(this.terrain,this.R):[]; this.gustT=2.5; this.kb=BF.feel('knockback');
   }
   // l = {power 0.35..1, angle -30..30 deg, spin, mode, shot, pos:{a,r}, moves:[ids], perks}
   launch(...ls){
@@ -194,7 +196,7 @@ BF.Sim = class {
         const nx=b.x/r2, ny=b.y/r2, vr=b.vx*nx+b.vy*ny, zone=this.zoneAt(Math.atan2(b.y,b.x));
         // the opening clash rarely rings anyone out — Beys still have the launch's grip on the floor
         const early=1+0.6*clamp(1-(this.t-1.5)/3,0,1), hold=(fx.anchor?1.35:1)*(fx.wall?1.2:1)*(f.boss?1.3:1);
-        if(zone && vr>(zone==='xtreme'?290:340)*early*hold){ b.alive=false; b.out=zone; this.events.push({k:zone,i}); }
+        if(zone && vr>(zone==='xtreme'?290:340)*early*hold){ b.alive=false; b.out=zone; this.events.push({k:zone,i,x:b.x,y:b.y,vx:b.vx,vy:b.vy}); }
         else { b.x=nx*lim; b.y=ny*lim; if(vr>0){ b.vx-=(1.55)*vr*nx; b.vy-=(1.55)*vr*ny; b.vx*=0.997; b.vy*=0.997; if(vr>60 && b.wallCd<=0){ b.w-=Math.min(b.w*0.04, vr*0.012); b.wallCd=0.25; } if(vr>250) this.events.push({k:'wall',i,x:b.x,y:b.y,s:vr}); } }
       }
       b.z=st.depth*Math.min(r2,R)**2/R;
@@ -242,8 +244,8 @@ BF.Sim = class {
     const gA=F[ia].g||{}, gB=F[ib].g||{}, G=x=>x===a?gA:gB;
     const outMul=x=>(x.next.kick||1)*(x.fx.weight?1.25:1)*(x.fx.sweep?1.3:1)*(x.home?1.1:1)*(G(x).spring?1.15:1)*(G(x).imbalance?1.1:1)*(G(x).bmode?(x.bmode==='defense'?0.85:1.12):1);
     const inMul=y=>(y.fx.wall?0.4:1)*(y.fx.anchor?0.55:1)*(y.fx.counter?0.6:1)*(y.st.armor?0.75:1)*(G(y).freering?0.85:1)*(G(y).freetip&&!G(y).brakes?1.12:1)*(G(y).brakes?0.85:1)*(G(y).barrier&&y.w>0.6*y.w0?0.8:1)*(G(y).bmode&&y.bmode==='defense'?0.8:1);
-    const kOnB=kick(F[ia].atk,F[ib].def,m2,m1)*em[0]*outMul(a)*inMul(b);
-    const kOnA=kick(F[ib].atk,F[ia].def,m1,m2)*em[1]*outMul(b)*inMul(a);
+    const kOnB=kick(F[ia].atk,F[ib].def,m2,m1)*em[0]*outMul(a)*inMul(b)*this.kb;
+    const kOnA=kick(F[ib].atk,F[ia].def,m1,m2)*em[1]*outMul(b)*inMul(a)*this.kb;
     a.vx-=nx*kOnA; a.vy-=ny*kOnA; b.vx+=nx*kOnB; b.vy+=ny*kOnB;
     // Counter: the attacker eats its own hit
     if(b.fx.counter){ a.vx-=nx*kOnB*0.8; a.vy-=ny*kOnB*0.8; }
@@ -252,7 +254,7 @@ BF.Sim = class {
     const loss=(atk,def)=>clash*0.0016*(0.4+atk/100)*(1.2-def/120);
     let la=loss(F[ib].atk,F[ia].def)*em[1]*(b.fx.barrage?1.5:1)*(a.fx.wall?0.6:1)*(F[ia].boss?0.9:1);
     let lb=loss(F[ia].atk,F[ib].def)*em[0]*(a.fx.barrage?1.5:1)*(b.fx.wall?0.6:1)*(F[ib].boss?0.9:1);
-    if(!same){ const steal=Math.abs(rimA-rimB)*0.0016; if(rimA>rimB){ a.w+=steal*0.5; lb+=steal; } else { b.w+=steal*0.5; la+=steal; } }
+    let stolen=null; if(!same){ const steal=Math.abs(rimA-rimB)*0.0016; if(rimA>rimB){ a.w+=steal*0.5; lb+=steal; stolen={to:ia,from:ib,a:steal}; } else { b.w+=steal*0.5; la+=steal; stolen={to:ib,from:ia,a:steal}; } }
     // spin-steal rubber: meshes with an opposite-spin foe and evens the spin out (like Drain-style layers)
     if(!same){ if(gA.spinsteal&&a.w<b.w){ const s=Math.min((b.w-a.w)*0.12,b.w0*0.035); a.w=Math.min(a.w0*1.05,a.w+s); lb+=s*0.8; } if(gB.spinsteal&&b.w<a.w){ const s=Math.min((a.w-b.w)*0.12,a.w0*0.035); b.w=Math.min(b.w0*1.05,b.w+s); la+=s*0.8; } }
     if(gA.freering) la*=0.65; if(gB.freering) lb*=0.65;
@@ -263,7 +265,7 @@ BF.Sim = class {
     const cx=a.x+nx*F[ia].R, cy=a.y+ny*F[ia].R;
     // "super effective" callouts only for hits made while a move is active
     const mv=[a.moveT>0?em[0]:1, b.moveT>0?em[1]:1];
-    this.events.push({k:'hit',x:cx,y:cy,s:clash,eff:Math.max(...mv)>1.05?'super':Math.min(...mv)<0.95?'weak':''});
+    this.events.push({k:'hit',x:cx,y:cy,s:clash,same,mv:a.moveT>0||b.moveT>0,st:stolen&&stolen.a>2?stolen:null,eff:Math.max(...mv)>1.05?'super':Math.min(...mv)<0.95?'weak':''});
     // burst meter: every hit knocks the ratchet a few clicks; enough clicks and it bursts
     this.heat=0;
     [[b,ib,a,ia,0],[a,ia,b,ib,1]].forEach(([y,iy,x,ix,k])=>{
@@ -291,7 +293,8 @@ BF.Sim = class {
 BF.STATUS_KEYS=STATUS_KEYS;
 
 // ---------- arena renderer ----------
-let _glow=null;
+let _glow=null, _soft=null, _streakG=null; const _railC=new T.Color(0xffe600), _tv=new T.Vector3();
+function softTex(){ if(_soft) return _soft; const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'), g=x.createRadialGradient(64,64,0,64,64,64); g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(0.18,'rgba(255,255,255,0.8)'); g.addColorStop(0.5,'rgba(255,255,255,0.14)'); g.addColorStop(1,'rgba(255,255,255,0)'); x.fillStyle=g; x.fillRect(0,0,128,128); return _soft=new T.CanvasTexture(c); }
 function glowTex(){ if(_glow) return _glow; const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); const g=x.createRadialGradient(64,64,0,64,64,64);
   g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(0.42,'rgba(255,255,255,0.15)'); g.addColorStop(0.55,'rgba(255,255,255,0.9)'); g.addColorStop(0.7,'rgba(255,255,255,0.25)'); g.addColorStop(1,'rgba(255,255,255,0)');
   x.fillStyle=g; x.fillRect(0,0,128,128); return _glow=new T.CanvasTexture(c); }
@@ -310,7 +313,7 @@ BF.Arena = class {
   constructor(el){
     this.el=el;
     const r=this.renderer=new T.WebGLRenderer({antialias:true});
-    r.setPixelRatio(Math.min(2,window.devicePixelRatio||1)); r.outputEncoding=T.sRGBEncoding; r.toneMapping=T.ACESFilmicToneMapping; r.toneMappingExposure=1.1; r.shadowMap.enabled=true;
+    r.setPixelRatio(Math.min(2,window.devicePixelRatio||1)); r.outputEncoding=T.sRGBEncoding; r.toneMapping=T.ACESFilmicToneMapping; r.toneMappingExposure=0.98; r.shadowMap.enabled=true;
     el.appendChild(r.domElement);
     const s=this.scene=new T.Scene(); s.background=new T.Color(0x07060e);
     this.camera=new T.PerspectiveCamera(38,1,5,5000); this.camera.up.set(0,0,1);
@@ -319,11 +322,11 @@ BF.Arena = class {
     [[0,0,90,0xffffff,4],[-90,20,20,0x2ef2ff,3],[90,-20,30,0xff2e88,3]].forEach(([x,y,z,c,k])=>{ const p=new T.Mesh(new T.PlaneGeometry(120,60),new T.MeshBasicMaterial({color:new T.Color(c).multiplyScalar(k),side:T.DoubleSide})); p.position.set(x,y,z); p.lookAt(0,0,0); es.add(p); });
     s.environment=pm.fromScene(es,0.03).texture;
     s.add(new T.HemisphereLight(0xb8c6ff,0x150a20,0.4));
-    const key=new T.DirectionalLight(0xffffff,1.4); key.position.set(120,-160,420); key.castShadow=true; key.shadow.mapSize.set(4096,4096); key.shadow.radius=3;
+    const key=new T.DirectionalLight(0xffffff,1.15); key.position.set(120,-160,420); key.castShadow=true; key.shadow.mapSize.set(4096,4096); key.shadow.radius=3;
     Object.assign(key.shadow.camera,{left:-220,right:220,top:220,bottom:-220,near:50,far:900}); s.add(key);
     const c1=new T.PointLight(0x2ef2ff,1.4,900); c1.position.set(-260,120,120); s.add(c1);
     const c2=new T.PointLight(0xff2e88,1.4,900); c2.position.set(260,-120,120); s.add(c2);
-    this.sparks=[]; this.fx=[]; this.beys=[null,null]; this.shake=0;
+    this.sparks=[]; this.fx=[]; this.beys=[null,null]; this.shake=0; this.hitL=new T.PointLight(0xfff0c0,0,520,1.6); s.add(this.hitL);
     this.applyQuality=()=>{ const q=BF.Settings?BF.Settings.get('quality'):'high'; r.setPixelRatio(Math.min(q==='high'?2:q==='medium'?1.25:0.8,window.devicePixelRatio||1)); r.shadowMap.enabled=!BF.Settings||BF.Settings.get('shadows'); };
     this.applyQuality(); BF.Settings&&BF.Settings.on(k=>{ if(k==='quality'||k==='shadows'||k==='*'){ this.applyQuality(); this.resize(); } });
     new ResizeObserver(()=>this.resize()).observe(el); this.resize();
@@ -348,10 +351,10 @@ BF.Arena = class {
     const grip=new T.Mesh(new T.BoxGeometry(8,6,24),dark); grip.position.set(0,20,18); grip.rotation.x=0.45; g.add(grip);
     const prongs=new T.Group(); for(let k=0;k<3;k++){ const pr=new T.Mesh(new T.BoxGeometry(3,3,6),acc); const a=k*Math.PI*2/3; pr.position.set(Math.cos(a)*11,Math.sin(a)*11,-1); prongs.add(pr); } g.add(prongs);
     g.userData.cord=cordEnd; return g; }
-  releaseLaunchers(){ (this.beys||[]).forEach(v=>{ if(v.launcher){ v.launcher.userData.fly=0.01; } }); const pose=this.camPose(0); if(pose) this.camFx={kind:'back',t:0,dur:0.6,fromPos:pose.pos.clone(),fromLook:pose.look.clone()}; }
+  releaseLaunchers(){ (this.beys||[]).forEach(v=>{ if(v.launcher){ v.launcher.userData.fly=0.01; } }); this.camFx=null; }
   clearLaunchers(){ (this.beys||[]).forEach(v=>{ if(v.launcher){ v.root.remove(v.launcher); v.launcher=null; } }); }
   intro(){ if(!this.camBase||document.documentElement.classList.contains('reduce-motion')) return; const R=this.R||190; this.camFx={kind:'intro',t:0,dur:1.9,from:new T.Vector3(R*1.6,-R*0.9,R*0.55)}; }
-  focus(x,y,z,dur){ this.camFx={kind:'focus',t:0,dur:dur||1.6,at:new T.Vector3(x,y,z||0)}; }
+  focus(x,y,z,dur){ this.camFx={kind:'focus',t:0,dur:dur||1.6,at:new T.Vector3(x,y,z||0),from:this.cc?this.cc.pos.clone():null,fromLook:this.cc?this.cc.look.clone():null}; }
   camPose(dt){
     const B=this.camBase; if(!B) return null; const f=this.camFx; if(!f) return {pos:B.pos,look:B.look};
     f.t+=dt; const u=Math.min(1,f.t/f.dur), e=u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
@@ -360,11 +363,49 @@ BF.Arena = class {
       const p=B.pos.clone().lerp(close,e), l=B.look.clone().lerp(f.at,e); if(u>=1){ f.t=f.dur; } return {pos:p,look:l}; }
     if(f.kind==='back'){ return {pos:f.fromPos.clone().lerp(B.pos,e),look:f.fromLook.clone().lerp(B.look,e)}; }
     if(f.kind==='intro'){ const a=(1-e)*1.2; const p0=f.from.clone().applyAxisAngle(new T.Vector3(0,0,1),a); pos=p0.lerp(B.pos,e); look=B.look; }
-    else { const k=Math.sin(u*Math.PI); const toward=B.pos.clone().lerp(f.at.clone().add(new T.Vector3(0,-60,90)),0.62*Math.min(1,k*1.6)); pos=toward; look=B.look.clone().lerp(f.at,Math.min(1,k*1.6)); }
+    else { const k=Math.sin(u*Math.PI), p0=f.from||B.pos, l0=f.fromLook||B.look; pos=p0.clone().lerp(f.at.clone().add(new T.Vector3(0,-70,95)),0.62*Math.min(1,k*1.6)); look=l0.clone().lerp(f.at,Math.min(1,k*1.6)); }
     if(u>=1) this.camFx=null;
     return {pos,look};
   }
+  // ---------- in-fight cameras (Settings → Camera) ----------
+  camMode(){ if(document.documentElement.classList.contains('reduce-motion')) return 'overhead'; return (BF.Settings&&BF.Settings.get('camera'))||'action'; }
+  battleCam(snap,dt){
+    const B=this.camBase, mode=this.camMode(); if(!B||!snap||mode==='overhead') return B?{pos:B.pos,look:B.look}:null;
+    const live=snap.b.filter(s=>s[7]); const list=live.length?live:snap.b; const R=this.R||190, cam=this.camera, portrait=cam.aspect<1;
+    const cx=list.reduce((a,s)=>a+s[0],0)/list.length, cy=list.reduce((a,s)=>a+s[1],0)/list.length;
+    let sep=0; list.forEach(s=>{ sep=Math.max(sep,Math.hypot(s[0]-cx,s[1]-cy)); });
+    const v=cam.fov*Math.PI/360, h=Math.atan(Math.tan(v)*cam.aspect), fit=Math.min(Math.tan(v),Math.tan(h));
+    this.camT=(this.camT||0)+dt;
+    if(mode==='follow'){ const me=snap.b[this.meIdx||0]||list[0], o=snap.b.find((s,i)=>i!==(this.meIdx||0)&&s[7])||[0,0], dx=me[0]-o[0], dy=me[1]-o[1], d=Math.hypot(dx,dy)||1; const back=R*0.62;
+      return {pos:new T.Vector3(me[0]+dx/d*back,me[1]+dy/d*back,R*0.72),look:new T.Vector3(me[0]-dx/d*30,me[1]-dy/d*30,6)}; }
+    if(mode==='broadcast'){ this.camCut=(this.camCut||0)-dt; if(this.camCut<=0){ this.camCut=5+Math.random()*3; this.camAng=Math.random()*TAU; this.cc=null; }
+      const a=this.camAng+this.camT*0.09, d=R*(1.55+0.25*Math.sin(this.camT*0.4)); return {pos:new T.Vector3(Math.cos(a)*d,Math.sin(a)*d,R*0.78),look:new T.Vector3(cx*0.8,cy*0.8,4)}; }
+    // action: keep every Bey framed, push in when they're close
+    const tilt=portrait?0.66:1.0, need=(sep+R*0.42)/fit, dist=Math.max(R*(portrait?1.55:1.3),Math.min(need,R/fit*1.05)), side=Math.sin(this.camT*0.17)*0.16;
+    const look=new T.Vector3(cx*0.72,cy*0.72,4);
+    return {pos:new T.Vector3(look.x+Math.sin(side)*Math.sin(tilt)*dist,look.y-Math.cos(side)*Math.sin(tilt)*dist,look.z+Math.cos(tilt)*dist),look}; }
+  punch(x,y,z,amt,dur){ if(document.documentElement.classList.contains('reduce-motion')) return; amt*=BF.feel('zoom'); if(amt<=0) return; this.kick={at:new T.Vector3(x,y,z||0),t:0,dur:dur||0.4,amt}; }
+  // ---------- impact: sparks, flash, shockwave, light and shake, scaled by tier 0..3 ----------
+  impact(x,y,z,tier,color){
+    const on=this.partOn(), c=new T.Color(color||0xffe08a), F=BF.feel('sparks');
+    const N=Math.round([6,13,26,46][tier]*F), sp=[150,250,380,560][tier];
+    if(on){ _streakG=_streakG||new T.BoxGeometry(1,1,1); for(let i=0;i<N&&this.sparks.length<280;i++){ const a=Math.random()*TAU, s=sp*(0.35+Math.random()*0.85), m=new T.Mesh(_streakG,new T.MeshBasicMaterial({color:i%4?c:0xffffff,transparent:true,blending:T.AdditiveBlending,depthWrite:false}));
+        m.position.set(x,y,z+7); m.userData={vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:30+Math.random()*sp*0.75,life:0.16+Math.random()*(0.2+tier*0.09),grav:760,streak:1,shared:1,w:0.65+tier*0.16}; m.userData.max=m.userData.life; this.scene.add(m); this.sparks.push(m); } }
+    if(tier>=1&&F>0){ const sprite=new T.Sprite(new T.SpriteMaterial({map:softTex(),color:c,transparent:true,blending:T.AdditiveBlending,depthTest:false,depthWrite:false})); sprite.position.set(x,y,z+9); const life=[0,0.1,0.14,0.22][tier];
+      sprite.userData={flash:1,sprite:1,life,max:life,size:[0,46,88,170][tier]}; sprite.scale.setScalar(sprite.userData.size*0.6); this.scene.add(sprite); this.fx.push(sprite);
+      for(let r=0;r<(tier===3?3:tier===2?2:1);r++){ const ring=new T.Mesh(new T.RingGeometry(0.965,1,96),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false})); ring.position.set(x,y,z+2); const l2=0.28+r*0.1+tier*0.04; ring.userData={ring:1,life:l2,max:l2,grow:[0,44,90,190][tier]*(1+r*0.45)}; ring.scale.setScalar(5); this.scene.add(ring); this.fx.push(ring); } }
+    this.hitL.position.set(x,y,z+24); this.hitL.color.copy(c); this.hitL.intensity=Math.max(this.hitL.intensity,[0.6,2,4.5,9][tier]);
+    this.shake=Math.min(16,this.shake+[0.15,1.1,3.2,8][tier]*BF.feel('shake'));
+    if(tier===3&&this.room&&this.room.userData.pulse) this.room.userData.pulse();
+  }
+  // knocked out: the Bey flies out of the stadium. Spun out: it topples over.
+  koFx(i,kind,e){ const v=this.beys[i]; if(!v) return; if(kind==='stop'){ v.ko={k:'topple',t:0,dir:Math.random()*TAU}; return; }
+    const sp=Math.hypot(e.vx||0,e.vy||0)||1, s=Math.max(sp,430), p=v.root.position; v.ko={k:'fly',t:0,x:e.x==null?p.x:e.x,y:e.y==null?p.y:e.y,z:p.z,vx:(e.vx||0)/sp*s*0.95,vy:(e.vy||0)/sp*s*0.95,vz:kind==='xtreme'?360:270}; }
+  // spin steal: sparks stream from the loser into the winner
+  stealFx(from,to){ const a=this.beys[from], b=this.beys[to]; if(!a||!b||!this.partOn()) return; const pa=a.root.position, pb=b.root.position; for(let q=0;q<10;q++){ const f=0.55+Math.random()*0.5; this.particle(pa.x,pa.y,pa.z+8,(pb.x-pa.x)*2.3*f,(pb.y-pa.y)*2.3*f,50+Math.random()*50,0.42,0x7fe9ff,1.0,160); } }
   setup(stadium, f1, f2, f3){
+    this.cc=null; this.kick=null; this.camT=0; this.camCut=0;
+    if(this.room){ this.scene.remove(this.room); this.room=null; } const roomQ=!BF.Settings||BF.Settings.get('quality'); if(BF.buildRoom&&roomQ!=='low'){ this.room=BF.buildRoom(stadium.diameter/2,roomQ==='high'||roomQ===true); this.scene.add(this.room); }
     if(this.stadiumMesh){ this.scene.remove(this.stadiumMesh); }
     this.beys.forEach(b=>{ if(b){ this.scene.remove(b.root); if(b.trail){ this.scene.remove(b.trail); b.trail.geometry.dispose(); } } }); this.live=false;
     this.R=stadium.diameter/2; this.stadium=stadium;
@@ -403,7 +444,7 @@ BF.Arena = class {
     const m=new T.Line(new T.BufferGeometry().setFromPoints(pts),new T.LineBasicMaterial({color:0xfff6b0,transparent:true,blending:T.AdditiveBlending,depthWrite:false})); m.userData={life:0.35,max:0.35}; this.scene.add(m); this.fx.push(m);
     this.spark(x0,y0,2,2500,0xffd21f); this.shake=Math.min(6,(this.shake||0)+2); }
   moveFx(i,c){ const v=this.beys[i]; if(!v) return; const p=v.root.position;
-    [0,0.12].forEach(dl=>setTimeout(()=>{ const m=new T.Mesh(new T.RingGeometry(0.85,1,96),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false,depthTest:false}));
+    [0,0.12].forEach(dl=>setTimeout(()=>{ const m=new T.Mesh(new T.RingGeometry(0.965,1,96),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false,depthTest:false}));
       m.position.set(p.x,p.y,p.z+2); m.userData={ring:true,life:0.6,max:0.6,grow:140}; this.scene.add(m); this.fx.push(m); },dl*1000));
     if(this.partOn()) for(let q=0;q<28;q++){ const a=q/28*TAU, s=90+Math.random()*90; this.particle(p.x,p.y,p.z+6,Math.cos(a)*s,Math.sin(a)*s,60+Math.random()*80,0.6,c,1.3,200); }
     this.shake=Math.min(5,(this.shake||0)+1.5); }
@@ -414,20 +455,20 @@ BF.Arena = class {
     const m=new T.Mesh(new T.SphereGeometry(size||0.9,6,4),new T.MeshBasicMaterial({color,transparent:true,blending:T.AdditiveBlending,depthWrite:false}));
     m.position.set(x,y,z); m.userData={vx,vy,vz,life,max:life,grav:grav??600}; this.scene.add(m); this.sparks.push(m);
   }
-  updateTrail(v,x,y,z,alive,dt){
-    const kind=v.cos.trail, on=this.cosOn()&&kind!=='none'&&alive;
+  updateTrail(v,x,y,z,alive,dt,dash){
+    const rail=dash&&alive, kind=rail?'ribbon':v.cos.trail, on=rail||(this.cosOn()&&kind!=='none'&&alive);
     if(!alive){ v.trailPts.length=0; } else { v.trailPts.unshift([x,y,z+3]); if(v.trailPts.length>60) v.trailPts.pop(); }
     const pos=v.trail.geometry.attributes.position, col=v.trail.geometry.attributes.color, n=on&&(kind==='ribbon'||kind==='lightning'||kind==='rainbow')?v.trailPts.length:0;
     const t=performance.now()/1000;
     for(let i=0;i<n;i++){ const p=v.trailPts[i]; let jx=0,jy=0; if(kind==='lightning'){ jx=(Math.random()-0.5)*5; jy=(Math.random()-0.5)*5; }
-      pos.setXYZ(i,p[0]+jx,p[1]+jy,p[2]); const f=1-i/n; const c=kind==='rainbow'?new T.Color().setHSL((t*0.5+i/40)%1,1,0.55):v.color; col.setXYZ(i,c.r*f,c.g*f,c.b*f); }
+      pos.setXYZ(i,p[0]+jx,p[1]+jy,p[2]); const f=1-i/n; const c=kind==='rainbow'?new T.Color().setHSL((t*0.5+i/40)%1,1,0.55):rail?_railC:v.color; col.setXYZ(i,c.r*f,c.g*f,c.b*f); }
     pos.needsUpdate=true; col.needsUpdate=true; v.trail.geometry.setDrawRange(0,n);
     if(on && this.partOn() && (kind==='sparks'||kind==='fire') && Math.random()<dt*40){
       const fire=kind==='fire'; this.particle(x,y,z+4,(Math.random()-0.5)*40,(Math.random()-0.5)*40,fire?60+Math.random()*60:30,fire?0.45:0.3,fire?(Math.random()<0.5?0xff6a1a:0xffd21f):v.color.getHex(),fire?1.3:0.7,fire?-80:500); }
   }
   launchFx(i){
     const v=this.beys[i]; if(!v||!this.cosOn()) return; const p=v.root.position, c=v.color.getHex(), k=v.cos.launch;
-    if(k==='ring'){ const m=new T.Mesh(new T.RingGeometry(0.9,1,96),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false,depthTest:false})); m.position.set(p.x,p.y,p.z+1); m.userData={ring:true,life:0.7,max:0.7,grow:150}; this.scene.add(m); this.fx.push(m); }
+    if(k==='ring'){ const m=new T.Mesh(new T.RingGeometry(0.965,1,96),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false,depthTest:false})); m.position.set(p.x,p.y,p.z+1); m.userData={ring:true,life:0.7,max:0.7,grow:150}; this.scene.add(m); this.fx.push(m); }
     if(k==='spiral'&&this.partOn()) for(let q=0;q<36;q++){ const a=q/36*TAU*2, s=80+q*4; this.particle(p.x,p.y,p.z+2,Math.cos(a)*s,Math.sin(a)*s,40+q*3,0.7,c,1.1,120); }
     if(k==='petals'&&this.partOn()) for(let q=0;q<30;q++){ const a=Math.random()*TAU, s=60+Math.random()*120; this.particle(p.x,p.y,p.z+4,Math.cos(a)*s,Math.sin(a)*s,120+Math.random()*80,1.1,q%2?0xffb7e0:c,1.4,220); }
     if(k==='lightning'){ const pts=[]; let x=p.x,y=p.y; for(let z=260;z>=p.z;z-=26){ pts.push(new T.Vector3(x,y,z)); x+=(Math.random()-0.5)*26; y+=(Math.random()-0.5)*26; } pts.push(new T.Vector3(p.x,p.y,p.z));
@@ -440,37 +481,49 @@ BF.Arena = class {
     if(k==='fireworks'&&this.partOn()) [0,1,2].forEach(b=>setTimeout(()=>{ const ox=p.x+(Math.random()-0.5)*120, oy=p.y+(Math.random()-0.5)*120, oz=120+Math.random()*80, col=cols[(b*2+i)%cols.length];
       for(let q=0;q<40;q++){ const a=Math.random()*TAU, e=Math.random()*Math.PI-Math.PI/2, s=90+Math.random()*60; this.particle(ox,oy,oz,Math.cos(a)*Math.cos(e)*s,Math.sin(a)*Math.cos(e)*s,Math.sin(e)*s,1.2,col,1.3,120); } },b*280));
     if(k==='spotlight'){ const m=new T.Mesh(new T.CylinderGeometry(6,v.f.R*2.2,320,32,1,true),new T.MeshBasicMaterial({color:c,transparent:true,opacity:0.25,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false})); m.rotateX(Math.PI/2); m.position.set(p.x,p.y,p.z+160); m.userData={life:2.2,max:2.2,fade:true}; this.scene.add(m); this.fx.push(m); }
-    if(k==='shockwave'){ [0,0.15,0.3].forEach(dl=>setTimeout(()=>{ const m=new T.Mesh(new T.RingGeometry(0.88,1,96),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false,depthTest:false})); m.position.set(p.x,p.y,p.z+1); m.userData={ring:true,life:0.9,max:0.9,grow:260}; this.scene.add(m); this.fx.push(m); },dl*1000)); this.shake=Math.min(6,this.shake+2); }
+    if(k==='shockwave'){ [0,0.15,0.3].forEach(dl=>setTimeout(()=>{ const m=new T.Mesh(new T.RingGeometry(0.965,1,96),new T.MeshBasicMaterial({color:c,transparent:true,side:T.DoubleSide,blending:T.AdditiveBlending,depthWrite:false,depthTest:false})); m.position.set(p.x,p.y,p.z+1); m.userData={ring:true,life:0.9,max:0.9,grow:260}; this.scene.add(m); this.fx.push(m); },dl*1000)); this.shake=Math.min(6,this.shake+2); }
   }
   render(snap,dt){
     if(snap){ snap.b.forEach((s,i)=>{ const v=this.beys[i]; if(!v) return; const [x,y,z,ang,w,w0,tilt,alive,burst,dash]=s;
       v.root.visible=!burst; v.root.position.set(x,y,z);
-      this.updateTrail(v,x,y,z,alive&&!burst&&this.live,dt);
+      this.updateTrail(v,x,y,z,alive&&!burst&&this.live,dt,dash);
       const ak=v.cos.aura, tt=performance.now()/1000; v.aura.material.opacity = this.cosOn()&&alive&&ak!=='none' ? (ak==='pulse'?0.18+0.14*Math.sin(tt*6+i):ak==='flame'?0.2+Math.random()*0.12:0.22)*(w/(w0||1)) : 0;
-      const wob=tilt*0.5, ph=ang*0.18; v.tilt.rotation.set(Math.sin(ph)*wob,Math.cos(ph)*wob,0);
+      // wobble: precession speeds up as spin dies, then the rim starts to scrape
+      v.prec=(v.prec||0)+dt*(2.2+8*Math.min(1,tilt)); const wob=tilt*0.62*(1+0.14*Math.sin(v.prec*3.7)), rr=Math.hypot(x,y)||1, ln=dash?0.26:0;
+      let rx=Math.sin(v.prec)*wob+(y/rr)*ln, ry=Math.cos(v.prec)*wob-(x/rr)*ln;
+      if(tilt>0.55&&alive&&this.partOn()&&this.live&&Math.random()<dt*22){ const a=-v.prec+Math.PI/2; this.particle(x+Math.cos(a)*v.f.R*0.8,y+Math.sin(a)*v.f.R*0.8,z+3,(Math.random()-0.5)*90,(Math.random()-0.5)*90,50+Math.random()*60,0.3,0xffc36a,0.75,520); }
+      if(dash&&alive&&this.live&&this.partOn()){ for(let q=0;q<2;q++) this.particle(x+(Math.random()-0.5)*8,y+(Math.random()-0.5)*8,z+3,(x/rr)*(90+Math.random()*90)+(Math.random()-0.5)*60,(y/rr)*(90+Math.random()*90)+(Math.random()-0.5)*60,50+Math.random()*70,0.32,q?0xffe600:0xffffff,0.95,520); }
+      if(v.ko){ const K=v.ko; K.t+=dt; if(K.k==='fly'){ K.vz-=980*dt; K.x+=K.vx*dt; K.y+=K.vy*dt; K.z+=K.vz*dt; if(K.z<-5&&K.vz<0){ K.z=-5; K.vz=-K.vz*0.38; K.vx*=0.72; K.vy*=0.72; } v.root.position.set(K.x,K.y,K.z); rx=K.t*7.3; ry=K.t*4.1; v.ring.visible=false; }
+        else { const u=Math.min(1,K.t/0.55), e=u*u*(3-2*u)*1.42; rx=Math.cos(K.dir)*e; ry=Math.sin(K.dir)*e; v.ring.visible=false; } } else v.ring.visible=true;
+      v.tilt.rotation.set(rx,ry,0);
       v.spin.rotation.z=ang; v.ring.material.opacity=alive?(dash?1:0.55):0.15; v.ring.scale.setScalar(dash?1.25:1);
     }); }
     (this.beys||[]).forEach(v=>{ const L=v.launcher; if(!L) return; if(L.userData.fly){ L.userData.fly+=dt; L.position.z+=dt*260; L.rotation.z+=dt*4; L.traverse(o=>{ if(o.material){ o.material.transparent=true; o.material.opacity=Math.max(0,1-L.userData.fly*2); } }); if(L.userData.fly>0.6){ v.root.remove(L); v.launcher=null; } }
       else if(L.userData.cord&&L.userData.pull!=null) L.userData.cord.position.x=36+L.userData.pull*40; });
     const anims=this.stadiumMesh&&this.stadiumMesh.userData.anims; if(anims){ const tt=snap&&snap.t!=null&&this.live?snap.t:performance.now()/1000; anims.forEach(f=>f(tt)); }
     for(let i=this.fx.length-1;i>=0;i--){ const m=this.fx[i], u=m.userData; u.life-=dt; const f=Math.max(0,u.life/u.max);
-      if(u.ring){ m.scale.setScalar(8+(1-f)*u.grow); } m.material.opacity=(u.fade?0.25:1)*f;
-      if(u.life<=0){ this.scene.remove(m); m.geometry.dispose(); m.material.dispose(); this.fx.splice(i,1); } }
-    for(let i=this.sparks.length-1;i>=0;i--){ const m=this.sparks[i], u=m.userData; u.life-=dt; u.vz-=(u.grav??600)*dt; m.position.x+=u.vx*dt; m.position.y+=u.vy*dt; m.position.z+=u.vz*dt; m.scale.setScalar(Math.max(0.1,u.max?u.life/u.max*1.5:u.life*2.5)); if(m.material.opacity!==undefined&&u.max) m.material.opacity=Math.min(1,u.life/u.max*1.5);
-      if(u.life<=0){ this.scene.remove(m); m.geometry.dispose(); m.material.dispose(); this.sparks.splice(i,1); } }
-    const cam=this.camera, pose=this.camPose(dt); if(pose){ cam.position.copy(pose.pos); cam.lookAt(pose.look); }
+      if(u.ring){ m.scale.setScalar(8+(1-f)*u.grow); } if(u.flash){ m.scale.setScalar(u.size*(0.55+0.65*(1-f))); } m.material.opacity=(u.fade?0.25:1)*f;
+      if(u.life<=0){ this.scene.remove(m); if(!u.sprite) m.geometry.dispose(); m.material.dispose(); this.fx.splice(i,1); } }
+    for(let i=this.sparks.length-1;i>=0;i--){ const m=this.sparks[i], u=m.userData; u.life-=dt; u.vz-=(u.grav??600)*dt; m.position.x+=u.vx*dt; m.position.y+=u.vy*dt; m.position.z+=u.vz*dt; if(u.streak){ if(m.position.z<1&&u.vz<0){ m.position.z=1; u.vz=-u.vz*0.45; u.vx*=0.7; u.vy*=0.7; } const f=Math.max(0.05,u.life/u.max), sp=Math.hypot(u.vx,u.vy,u.vz); m.scale.set(u.w*f,u.w*f,Math.max(1,sp*0.028)*f+0.6); _tv.set(m.position.x+u.vx,m.position.y+u.vy,m.position.z+u.vz); m.lookAt(_tv); } else m.scale.setScalar(Math.max(0.1,u.max?u.life/u.max*1.5:u.life*2.5)); if(m.material.opacity!==undefined&&u.max) m.material.opacity=Math.min(1,u.life/u.max*1.5);
+      if(u.life<=0){ this.scene.remove(m); if(!u.shared) m.geometry.dispose(); m.material.dispose(); this.sparks.splice(i,1); } }
+    const cam=this.camera; let pose=this.camFx?this.camPose(dt):(this.live?this.battleCam(snap,dt):this.camPose(dt));
+    if(pose){ if(!this.cc) this.cc={pos:pose.pos.clone(),look:pose.look.clone()}; else { const calm=document.documentElement.classList.contains('reduce-motion'), k=calm?1:1-Math.exp(-dt*(this.camFx?12:this.live?3.6:6)); this.cc.pos.lerp(pose.pos,k); this.cc.look.lerp(pose.look,k); }
+      let look=this.cc.look; cam.position.copy(this.cc.pos);
+      if(this.kick){ const K=this.kick; K.t+=dt; const u=K.t/K.dur; if(u>=1) this.kick=null; else { const w=Math.sin(Math.min(1,u*2.4)*Math.PI*0.5)*(1-u)*1.4*K.amt; cam.position.lerp(K.at,w); look=look.clone().lerp(K.at,w); } }
+      cam.lookAt(look); }
+    this.hitL.intensity*=Math.pow(0.0006,dt); if(this.room&&this.room.userData.tick) this.room.userData.tick(performance.now()/1000,dt);
     const base=cam.position.clone();
     if(BF.Settings&&!BF.Settings.get('shake')) this.shake=0;
-    if(this.shake>0.05){ cam.position.x+=(Math.random()-0.5)*this.shake; cam.position.y+=(Math.random()-0.5)*this.shake; this.shake*=Math.pow(0.02,dt); }
+    if(this.shake>0.05){ cam.position.x+=(Math.random()-0.5)*this.shake; cam.position.y+=(Math.random()-0.5)*this.shake; cam.position.z+=(Math.random()-0.5)*this.shake*0.5; this.shake*=Math.pow(0.012,dt); }
     BF.HD.render(this,this.renderer,this.scene,cam); cam.position.copy(base);
   }
   burstFx(i){ const v=this.beys[i]; if(!v) return; const p=v.root.position;
     v.f.asm.parts.forEach((part,k)=>{ const g=beyGroup({...v.f.asm,parts:[part]}); g.position.copy(p); g.position.z+=part.z0+6; this.scene.add(g);
-      const a=Math.random()*TAU, s=90+Math.random()*120; g.userData={vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:160+k*40,spin:(Math.random()-0.5)*20};
+      const a=Math.random()*TAU, s=170+Math.random()*190; g.userData={vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:300+k*70+Math.random()*110,spin:(Math.random()<0.5?-1:1)*(16+Math.random()*16)};
       this.debris=(this.debris||[]); this.debris.push(g); });
-    this.spark(p.x,p.y,p.z,6000,0xff2e88);
+    this.impact(p.x,p.y,p.z,3,0xff5aa5); this.spark(p.x,p.y,p.z,6000,0xffd21f); this.punch(p.x,p.y,p.z,0.42,0.75);
   }
   tickDebris(dt){ (this.debris||[]).forEach(g=>{ const u=g.userData; u.vz-=700*dt; g.position.x+=u.vx*dt; g.position.y+=u.vy*dt; g.position.z=Math.max(this.stadium.depth*Math.min(Math.hypot(g.position.x,g.position.y),this.R)**2/this.R, g.position.z+u.vz*dt); if(g.position.z<=0.1+this.stadium.depth*Math.hypot(g.position.x,g.position.y)**2/this.R){ u.vx*=0.9; u.vy*=0.9; u.vz=Math.abs(u.vz)*0.3; } g.rotation.z+=u.spin*dt; g.rotation.x+=u.spin*0.3*dt; }); }
-  clearDebris(){ (this.debris||[]).forEach(g=>this.scene.remove(g)); this.debris=[]; }
+  clearDebris(){ (this.debris||[]).forEach(g=>this.scene.remove(g)); this.debris=[]; (this.beys||[]).forEach(v=>{ if(v) v.ko=null; }); }
 };
 })();

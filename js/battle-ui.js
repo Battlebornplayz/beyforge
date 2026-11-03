@@ -153,7 +153,7 @@ const B = BF.BattleUI = {
     this.F=[m.tut?BF.bossFighter(m.d1,m.n1,(BF.Econ&&BF.Econ.get('onboarding').starterBoost)||1.15):BF.fighter(m.d1,m.n1), m.boss2?BF.bossFighter(m.d2,m.n2,m.bossScale||1.2):BF.fighter(m.d2,m.n2)];
     if(this.raid) this.F.push(BF.bossFighter(m.d3,m.n3,m.bossScale||1.45));
     this.me = this.mode==='online' && BF.Net.role==='guest' ? 1 : 0;
-    this.arena.setup(m.stadium,...this.F); this.arena.intro();
+    this.arena.meIdx=this.me; this.hitStop=0; this.slowT=0; this.arena.setup(m.stadium,...this.F); this.arena.intro();
     $('#bossHud').hidden=!this.raid; if(this.raid){ $('#bossName').textContent=this.F[2].name; }
     this.rules=m.rules||BF.Settings.rulesFor(m.stadium.kind);
     this.mst=this.F.map(()=>({moves:0,statuses:0,clicks:0,rounds:0,fin:{}})); this.mstAll={hits:0,best:0,longest:0,rounds:0};
@@ -270,12 +270,13 @@ const B = BF.BattleUI = {
       if(e.k==='move'&&M[e.i]){ M[e.i].moves++; if(BF.Stats&&this.mode!=='local'&&e.i===(this.raid?0:this.me)) BF.Stats.add('moves.'+(e.name||e.id).replace(/ (II|III)$/,'')); }
       if(e.k==='click'&&M[foe(e.i)]) M[foe(e.i)].clicks++;
       if(e.k==='status'&&e.s!=='armor'&&M[foe(e.i)]) M[foe(e.i)].statuses++; }
-    if(e.k==='hit' && e.s>1500){ this.hitStop=0.07; ar.shake=Math.min(6,(ar.shake||0)+2.5); this.flash('rgba(255,255,255,.35)'); }
+    if(e.k==='hit') this.hitFx(e);
+    if(e.k==='over'||e.k==='xtreme'){ const v=ar.beys[e.i], p=v&&v.root.position; if(p){ ar.impact(e.x==null?p.x:e.x,e.y==null?p.y:e.y,p.z,3,e.k==='xtreme'?0xffe600:0xff8a3a); ar.punch(p.x,p.y,p.z,0.34,0.8); } ar.koFx(e.i,e.k,e); this.freeze(0.14,0.75); this.flash('rgba(255,255,255,.4)'); BF.Sfx&&BF.Sfx.impact&&BF.Sfx.impact(3,true); }
+    if(e.k==='stop') ar.koFx(e.i,'stop',e);
     if(e.k==='gust'){ this.flash('rgba(255,230,120,.25)'); ar.lightning&&ar.lightning(); BF.Sfx&&BF.Sfx.dash(); this.pop(null,'GUST!','#ffd21f'); }
     if(e.k==='nova'){ ar.moveFx&&ar.moveFx(e.i,0xffffff); this.flash('rgba(255,255,255,.5)'); ar.shake=Math.min(8,(ar.shake||0)+4); }
-    if(e.k==='hit'){ ar.spark(e.x,e.y,this.match.stadium.depth*Math.min(Math.hypot(e.x,e.y),ar.R)**2/ar.R,e.s); BF.Sfx && BF.Sfx.clash(e.s); }
-    if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
-    if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); this.flash('rgba(255,46,136,.45)'); }
+        if(e.k==='wall' && e.s>400){ ar.spark(e.x,e.y,20,e.s*0.5,0x9fb4ff); BF.Sfx && BF.Sfx.clash(e.s*0.5); }
+    if(e.k==='burst'){ ar.burstFx(e.i); BF.Sfx && BF.Sfx.burst(); this.flash('rgba(255,46,136,.5)'); this.freeze(0.17,0.95); }
     if(e.k==='dash'){ BF.Sfx && BF.Sfx.dash(); }
     if(e.k==='move'){ this.moveCall(e); if(BF.Missions&&this.myPlayers().includes(e.i)){ BF.Missions.bump('move'); if(e.sig) BF.Missions.bump('sig'); } }
     if(e.k==='status'){ const S=BF.STATUS[e.s]; if(S) this.pop(e.i,S.label.toUpperCase()+'!',S.color); BF.Sfx && BF.Sfx.status && BF.Sfx.status(); }
@@ -284,6 +285,14 @@ const B = BF.BattleUI = {
     if(e.k==='hit' && e.eff==='weak') this.pop(null,'Not very effective…','#9aa3b5');
     if(e.k==='click'){ ar.spark(e.x,e.y,14,700,0xffd21f); BF.Sfx && BF.Sfx.click&&BF.Sfx.click(e.n); const bar=$('#bm'+(e.i+1)); if(bar){ bar.parentNode.classList.remove('pop'); void bar.offsetWidth; bar.parentNode.classList.add('pop'); } }
   },
+  // real hit strengths: about half are under 650, the top 3% over 1000 (a move in play counts extra)
+  hitFx(e){ const ar=this.arena, S=e.s*(e.mv?1.25:1), tier=S>=1000?3:S>=800?2:S>=650?1:0, now=performance.now(), z=this.match.stadium.depth*Math.min(Math.hypot(e.x,e.y),ar.R)**2/ar.R, col=e.same?0xffd98a:0x8fdcff;
+    const ready=now-(this._bigT||0)>420, t=tier>=2&&!ready?1:tier; if(t>=2) this._bigT=now;
+    ar.impact(e.x,e.y,z,t,col); BF.Sfx&&BF.Sfx.impact&&BF.Sfx.impact(t,e.same);
+    if(t===1) this.freeze(0.03,0); if(t===2){ this.freeze(0.07,0); ar.punch(e.x,e.y,z,0.1,0.32); this.flash('rgba(255,255,255,.14)'); }
+    if(t===3){ this.freeze(0.13,0.3); ar.punch(e.x,e.y,z,0.24,0.55); this.flash('rgba(255,255,255,.34)'); }
+    if(e.st){ ar.stealFx(e.st.from,e.st.to); if(e.st.a>4&&now-(this._stealT||0)>2600){ this._stealT=now; this.pop(e.st.to,'SPIN STEAL!','#7fe9ff'); } } },
+  freeze(stop,slow){ if(BF.Settings&&BF.Settings.get('impactFx')===false) return; this.hitStop=Math.max(this.hitStop||0,stop*BF.feel('hitstop')); if(slow&&!document.documentElement.classList.contains('reduce-motion')) this.slowT=Math.max(this.slowT||0,slow*BF.feel('slowmo')); },
   roundEnd(res,score,fromNet){
     this.st='roundEnd'; document.body.classList.remove('infight'); if(score) this.score=score; this.hideMoveBar();
     // moves picked this round go on cooldown for the next one
@@ -408,7 +417,7 @@ const B = BF.BattleUI = {
       let snap=null;
       if(this.st==='setup' && this.preview){ this.preview.ang-=dt*30; const R=this.arena.R||190; snap={b:[[0,0,0,this.preview.ang,1,1,0,1,0,0],[0,0,0,0,1,1,0,0,1,0]]}; }
       else if(this.sim && this.st==='fight'){
-        if(this.hitStop>0){ this.hitStop-=dt; } else this.acc+=dt; const h=1/120;
+        if(!(this.hitStop>0)) this.acc+=dt*(this.slowT>0?0.24:1)*BF.feel('speed'); const h=1/120;
         while(this.acc>=h && !this.sim.done){ this.sim.step(h); this.acc-=h; }
         if((this.mode==='cpu'||this.raid) && this.movesOn){ this.aiAcc+=dt; if(this.aiAcc>=0.25){ this.aiAcc=0; if(this.raid) BF.MoveAI.tick(this.sim,2,'expert',this.aiMem[2]); else BF.MoveAI.tick(this.sim,1,this.cpuLv(),this.aiMem[1]); } }
         const ev=this.sim.events.splice(0); ev.forEach(e=>this.fx(e)); if(this.mode==='online') this.evQ.push(...ev);
@@ -423,7 +432,7 @@ const B = BF.BattleUI = {
       }
       if(this.st==='fight' && this.mode==='online' && BF.Net.role==='guest' && snap){ this.guestAng=this.guestAng||[0,0]; snap.b.forEach((s,i)=>{ this.guestAng[i]+= (this.F[i].d.spin==='left'?1:-1)*s[4]*dt; s[3]=this.guestAng[i]; }); }
       if(this.st==='fight' && snap){ this.syncMoveBar(snap); this.statusFx(snap); }
-      let rdt=dt; if(this.slow>0){ this.slow-=dt; rdt=dt*0.3; }
+      let rdt=dt; if(this.hitStop>0){ this.hitStop-=dt; rdt=dt*0.05; } else if(this.slowT>0){ this.slowT-=dt; rdt=dt*0.3; } else if(this.slow>0){ this.slow-=dt; rdt=dt*0.3; }
       this.arena.tickDebris(rdt);
       this.arena.render(snap,rdt);
     };
